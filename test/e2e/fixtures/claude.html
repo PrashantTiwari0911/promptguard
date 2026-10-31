@@ -1,0 +1,13 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Claude fixture</title>
+<style>body{font:15px system-ui;margin:40px}.ProseMirror{border:1px solid #999;min-height:60px;padding:8px}.chip{border:1px solid #ccc;padding:6px;margin:6px 0;max-width:300px;overflow:hidden;white-space:nowrap}</style></head>
+<body><fieldset>
+<div id="chips"></div>
+<div class="tiptap ProseMirror" contenteditable="true" role="textbox" aria-label="Write your prompt to Claude" data-testid="chat-input"><p><br></p></div>
+<button type="button" data-testid="chat-input-send" aria-label="Send message">Send</button>
+<input type="file" data-testid="file-upload" multiple>
+</fieldset>
+<script>window.FIXTURE = { editor: '[data-testid="chat-input"]', send: '[data-testid="chat-input-send"]', chipAt: 4000, previewChars: 300,
+  chipTestId: "file-thumbnail", removeLabel: "Remove Pasted text, pasted, 1 line",
+  endpoint: "/api/organizations/org1/chat_conversations/c1/completion",
+  body: (prompt, att) => ({ prompt, timezone: "Australia/Sydney", attachments: att.map((t) => ({ extracted_content: t, file_name: "" })) }) };</script>
+<script src="/__fixtures/app.js"></script></body></html>

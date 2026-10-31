@@ -1,0 +1,11 @@
+<!doctype html><html><head><meta charset="utf-8"><title>ChatGPT fixture</title>
+<style>body{font:15px system-ui;margin:40px}.ProseMirror{border:1px solid #999;min-height:60px;padding:8px}.chip{border:1px solid #ccc;padding:6px;margin:6px 0;max-width:300px;overflow:hidden;white-space:nowrap}</style></head>
+<body><main><form class="relative flex flex-col gap-2">
+<div id="chips"></div>
+<div id="prompt-textarea" class="ProseMirror" contenteditable="true"><p><br></p></div>
+<button id="composer-submit-button" type="submit" aria-label="Send prompt" data-testid="send-button">Send</button>
+</form></main>
+<script>window.FIXTURE = { editor: "#prompt-textarea", send: "#composer-submit-button", form: true, hideSendWhenEmpty: true, chipAt: 9000, previewChars: 80,
+  removeLabel: "Remove pasted text attachment", endpoint: "/backend-api/f/conversation",
+  body: (text) => ({ action: "next", messages: [{ id: "m1", author: { role: "user" }, content: { content_type: "text", parts: [text] } }], parent_message_id: "client-created-root", model: "auto" }) };</script>
+<script src="/__fixtures/app.js"></script></body></html>

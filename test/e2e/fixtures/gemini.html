@@ -1,0 +1,9 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Gemini fixture</title>
+<style>body{font:15px system-ui;margin:40px}.ql-editor{border:1px solid #999;min-height:60px;padding:8px}</style></head>
+<body><div id="chips"></div>
+<rich-textarea><div class="ql-editor ql-blank textarea" contenteditable="true" role="textbox" aria-label="Enter a prompt for Gemini"><p><br></p></div></rich-textarea>
+<button aria-label="Send message" class="send-button">Send</button>
+<script>window.FIXTURE = { editor: "rich-textarea .ql-editor", send: 'button[aria-label="Send message"]', chipAt: 1e9, previewChars: 80, removeLabel: "Remove file",
+  endpoint: "/_/BardChatUi/data/assistant.lamda.BardFrontendService/StreamGenerate?bl=x",
+  body: (text) => "f.req=" + encodeURIComponent(JSON.stringify([null, JSON.stringify([[text, 0, null, null, null, null, 0], ["en"], ["c_1", "r_1", "rc_1"]])])) + "&at=xyz" };</script>
+<script src="/__fixtures/app.js"></script></body></html>

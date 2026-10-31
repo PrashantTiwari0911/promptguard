@@ -5,7 +5,7 @@ import { scan } from "../src/engine/scan";
 
 interface Case { id: string; text: string; expect: "block" | "warn" | "allow" }
 const cases: Case[] = readFileSync(new URL("./corpus/cases.jsonl", import.meta.url), "utf8")
-  .split("\n").filter(Boolean).map((l) => JSON.parse(l));
+  .split("\n").filter(Boolean).map((l: string) => JSON.parse(l));
 
 describe("labelled corpus", () => {
   for (const c of cases) {
