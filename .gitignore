@@ -1,0 +1,6 @@
+node_modules/
+dist/
+promptguard.zip
+test-results/
+playwright-report/
+.e2e-profile/
