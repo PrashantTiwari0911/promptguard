@@ -112,7 +112,8 @@ const secrets: Detector = ({ n }) => {
     if (!quoted) v = v.replace(/[.!?]+$/, (t) => (v.length - t.length >= 6 ? "" : t));
     const s = m.index + m[0].length - m[4].length;
     if (/^pass$/i.test(label) && !quoted && !/\d/.test(v)) return null; // "pass: true", "pass is fine"
-    if (PLACEHOLDER.test(v)) return f(2, "password", "allow", s, s + v.length, "Password placeholder", "A placeholder, not a real value", "", 30);
+    if (v.length < 4 || /^(?:[/~]|\.{1,2}\/|[A-Za-z]:\\)/.test(v)) return null; // too short to judge, or a path ("pwd: /Users/…")
+    if (PLACEHOLDER.test(v) || /^[<{[$%]/.test(v)) return f(2, "password", "allow", s, s + v.length, "Password placeholder", "A placeholder, not a real value", "", 30);
     if (looksLikeCodeReference(v, quoted))
       return f(2, "password", "allow", s, s + v.length, "Password field in code", `"${v.slice(0, 30)}" is a type or variable, not a value`, "", 30);
     if (/^(?:true|false|required|optional|string|text|number|hidden|field|input|reset|policy|length|strength)$/i.test(v)) return null;
@@ -136,6 +137,7 @@ const secrets: Detector = ({ n }) => {
     if (classes < 3 || !/\d/.test(t)) return null;
     if (/[<>{}[\]()=;"'`:,\\|]|^[-*#/]|\*\*|\$\{|=>|\?\.|&&/.test(t)) return null; // code or markup, not a password
     if (/\$\d+$|\/|#L\d|^[A-Za-z]+\$?\d?$/.test(t)) return null; // bundler names (foo$1), paths, line anchors
+    if (/[a-z]\.[A-Za-z]|^![A-Za-z_]/.test(t)) return null; // member access (e.chunkSize), negated identifiers
     if (/:\/\/|^www\.|^[./~\\]|[\w.+-]+@[\w-]+\.\w|^[0-9a-f-]{16,}$|^\d[\d\s,.:/-]*$|^v?\d+\.\d+|^#|^[A-Z]{2,}\d*$/i.test(t)) return null;
     if (/^[A-Za-z_$][\w$]*(?:[.:][\w$]+)+(?:\(\)?)?$/.test(t)) return null; // obj.prop, Foo::bar
     if (/^[A-Za-z]+[-_]?\d{1,4}$|^\d{1,4}[A-Za-z]+$/.test(t)) return null; // "Room-12", "2FA"
@@ -323,10 +325,10 @@ const databases: Detector = ({ n }) => {
 
 // ---------------------------------------------------------------- 8–10. Context categories, one record at a time
 const ID_MARKER = /\b(?:patient|name|full name|dob|d\.o\.b|date of birth|born|mrn|urn|medicare|ihi|nhs number|hospital no|customer|client|account holder|member|email|e-mail|phone|mobile|address)\b\s*(?:no\.?|number|#|id)?\s*[:=#-]/i;
-const MEDICAL_ABBR = /\b(?:Dx|DX|MRI|HIV|ICD-10|CT scan)\b/;
-const MEDICAL = /\b(?:diagnos(?:is|ed|es)|prognosis|prescri(?:bed|ption)|medication|dosage|\d+(?:\.\d+)?\s?(?:mg|mcg|ml|units?)\b|discharge summary|admitted|admission|patholog(?:y|ist)|biopsy|oncology|chemotherapy|hepatitis|schizophrenia|bipolar|depression|anxiety disorder|diabetes|asthma|cancer|tumou?r|pregnan(?:t|cy)|allerg(?:y|ies)|blood test|x-ray|surgery|treatment plan|clinical notes?|referral)\b|\b[A-TV-Z]\d{2}\.\d{1,2}\b/i;
+const MEDICAL_ABBR = /\b(?:Dx|DX|MRI|HIV|ICD-10|CT scan)\b|(?<![\w.])[A-TV-Z]\d{2}\.\d{1,2}\b/;
+const MEDICAL = /\b(?:diagnos(?:is|ed|es)|prognosis|prescri(?:bed|ption)|medication|dosage|\d+(?:\.\d+)?\s?(?:mg|mcg|ml|units?)\b|discharge summary|admitted|admission|patholog(?:y|ist)|biopsy|oncology|chemotherapy|hepatitis|schizophrenia|bipolar|depression|anxiety disorder|diabetes|asthma|cancer|tumou?r|pregnan(?:t|cy)|allerg(?:y|ies)|blood test|x-ray|surgery|treatment plan|clinical notes?|referral)\b/i;
 const FINANCIAL = /\b(?:balance|credit limit|available credit|arrears|overdue|outstanding|loan amount|loan balance|repayment|mortgage|salary|income|net worth|credit score|transactions?|withdrawal|deposit|debt|bsb|iban|account no)\b/i;
-const MONEY = /(?:[$€£₹¥]|AUD|USD|INR|EUR)\s?\d[\d,]*(?:\.\d{2})?|\b\d[\d,]*\.\d{2}\b/;
+const MONEY = /(?:[$€£₹¥]|\b(?:AUD|USD|INR|EUR|GBP)\s?)\d[\d,]*(?:\.\d{2})?/;
 const NAME_COL = /^(?:name|full[ _]?name|first[ _]?name|last[ _]?name|surname|customer(?:[ _]?name)?|client(?:[ _]?name)?|patient(?:[ _]?name)?|email|e-mail|account[ _]?holder|member)$/;
 const FIN_COL = /balance|amount|limit|arrears|overdue|outstanding|loan|salary|income|credit|debt|payment/;
 const MED_COL = /diagnos|condition|medication|dx|icd|treatment|allerg|procedure/;
@@ -356,7 +358,8 @@ const records810: Detector = ({ n, policy }) => {
       out.push(f(9, "medical_record", "block", s, s + med[0].length, "Medical record", `Health details in the same record as ${who ? `"${who}"` : "a patient identifier"}`, "", 61));
     }
     const fin = t.match(FINANCIAL);
-    if (fin && idm && who && /\b(?:customer|client|account holder|member|name)\b/i.test(t) && (MONEY.test(t) || /\b(?:bsb|iban|account no)\b/i.test(t))) {
+    const custLabel = /\b(?:customer|client|account holder|member|borrower|cardholder)\b\s*(?:name)?\s*[:=-]/i.test(t);
+    if (fin && custLabel && who && (MONEY.test(t) || /\b(?:bsb|iban|account no)\b/i.test(t))) {
       const s = rec.start + (fin.index ?? 0);
       out.push(f(8, "financial_record", "block", s, s + fin[0].length, "Customer financial record", `Financial details in the same record as "${who}"`, "", 62));
     }

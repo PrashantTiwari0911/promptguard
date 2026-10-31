@@ -1,0 +1,1018 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PromptGuard Design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Public+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#F2F4F6; --sheet:#FFFFFF; --ink:#1B2430; --ink-2:#4F5A6B; --rule:#CBD2DB; --wash:#E7EBF0;
+  --pencil:#3B5BA9; --pencil-wash:#E2E8F5; --pen:#B42318; --pen-wash:#FBE4E1; --hl:#D9B21C; --hl-wash:#FAEFB5;
+  --go:#2E7D5B; --go-wash:#DCEFE4; --ml:#6B4FA0; --ml-wash:#ECE6F5; --bar:#1B2430; --code:#E8ECF1;
+  /* aliases used by the diagrams and older markup */
+  --bg:var(--paper); --fg:var(--ink); --muted:var(--ink-2); --card:var(--sheet); --line:var(--rule); --soft:var(--wash);
+  --accent:var(--pencil); --accent-soft:var(--pencil-wash); --block:var(--pen); --block-soft:var(--pen-wash);
+  --warn:var(--hl); --warn-soft:var(--hl-wash); --allow:var(--go); --allow-soft:var(--go-wash); --ml-soft:var(--ml-wash);
+  --box:var(--sheet); --box2:var(--wash);
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#11151B; --sheet:#181D25; --ink:#E4E8EE; --ink-2:#9BA6B5; --rule:#353D49; --wash:#1F252E;
+    --pencil:#93ABEB; --pencil-wash:#1F2940; --pen:#FF8B7B; --pen-wash:#3B201D; --hl:#E8C93A; --hl-wash:#3A3416;
+    --go:#6CCF9F; --go-wash:#17302A; --ml:#BCA2EA; --ml-wash:#2A2238; --bar:#03050A; --code:#1C222B; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#11151B; --sheet:#181D25; --ink:#E4E8EE; --ink-2:#9BA6B5; --rule:#353D49; --wash:#1F252E;
+  --pencil:#93ABEB; --pencil-wash:#1F2940; --pen:#FF8B7B; --pen-wash:#3B201D; --hl:#E8C93A; --hl-wash:#3A3416;
+  --go:#6CCF9F; --go-wash:#17302A; --ml:#BCA2EA; --ml-wash:#2A2238; --bar:#03050A; --code:#1C222B; color-scheme:dark;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;scroll-padding-top:20px}
+body{margin:0;background:var(--paper);color:var(--ink);font:400 17px/1.65 "Public Sans",system-ui,sans-serif;font-feature-settings:"tnum" 0}
+a{color:var(--pencil);text-underline-offset:.18em}
+:focus-visible{outline:2px solid var(--pencil);outline-offset:2px;border-radius:2px}
+code,pre,textarea{font-family:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace}
+code{font-size:.84em;background:var(--code);padding:.08em .35em;border-radius:3px}
+pre{background:var(--code);padding:16px 18px;border-radius:6px;overflow-x:auto;line-height:1.55;font-size:.86rem}
+pre code{background:none;padding:0;font-size:inherit}
+p code,li code,td code,small code{overflow-wrap:anywhere}
+
+/* ---------- hero ---------- */
+.hero{padding:56px 16px 40px}
+.hero-in{max-width:1160px;margin:0 auto}
+.byline{color:var(--ink-2);font-size:.95rem;margin:0 0 28px;max-width:70ch}
+.frame{background:var(--sheet);border:1.5px solid var(--rule);border-radius:22px;padding:30px 34px 18px;max-width:980px;box-shadow:0 1px 0 var(--rule)}
+.frame h1{font-weight:700;font-size:clamp(2rem,5vw,3.9rem);line-height:1.12;letter-spacing:-.022em;margin:0;max-width:22ch}
+.secret{position:relative;white-space:nowrap;display:inline-block}
+.secret::after{content:"";position:absolute;left:-.06em;right:-.06em;top:.14em;bottom:.06em;background:var(--bar);border-radius:2px;transform:scaleX(0);transform-origin:left center;animation:redact .55s cubic-bezier(.65,0,.25,1) .8s forwards}
+.secret::before{content:attr(data-label);position:absolute;z-index:1;left:.7em;top:50%;transform:translateY(-38%);font-size:.3em;font-weight:700;letter-spacing:.02em;color:#F2F4F6;white-space:nowrap;opacity:0;animation:appear .3s ease-out 1.35s forwards}
+.frame-foot{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-top:26px;padding-top:14px;border-top:1px solid var(--wash)}
+.frame-note{color:var(--pen);font-weight:600;font-size:.98rem;opacity:0;animation:appear .3s ease-out 1.35s forwards}
+.send-dot{flex:none;width:42px;height:42px;border-radius:50%;background:var(--wash);display:grid;place-items:center;color:var(--ink-2)}
+.send-dot svg{width:20px;height:20px}
+.lede{font-size:1.18rem;line-height:1.6;max-width:62ch;margin:30px 0 0}
+@keyframes redact{to{transform:scaleX(1)}}
+@keyframes appear{to{opacity:1}}
+@media (prefers-reduced-motion: reduce){
+  .secret::after{animation:none;transform:scaleX(1)} .secret::before,.frame-note{animation:none;opacity:1}
+}
+
+/* ---------- live scanner ---------- */
+.lab{padding:8px 16px 48px}
+.lab-in{max-width:1160px;margin:0 auto}
+.lab h2{font-size:1.5rem;margin:0 0 6px;letter-spacing:-.01em}
+.lab-intro{color:var(--ink-2);margin:0 0 18px;max-width:72ch}
+.lab-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px;align-items:start}
+@media (max-width:900px){.lab-grid{grid-template-columns:1fr}}
+.pane{background:var(--sheet);border:1px solid var(--rule);border-radius:12px;padding:16px}
+.pane label{font-weight:600;font-size:.95rem;display:block;margin-bottom:8px}
+.pane textarea{width:100%;min-height:330px;resize:vertical;border:1px solid var(--rule);border-radius:8px;background:var(--paper);color:var(--ink);padding:12px;font-size:.84rem;line-height:1.55}
+.presets{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.btn{font:600 .88rem/1 "Public Sans",system-ui,sans-serif;border:1px solid var(--rule);background:var(--paper);color:var(--ink);border-radius:999px;padding:8px 13px;cursor:pointer}
+.btn:hover{border-color:var(--ink-2)}
+.btn[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.btn.primary{background:var(--pencil);color:#fff;border-color:var(--pencil)}
+.btn.primary:disabled{opacity:.45;cursor:not-allowed}
+.verdict{border-radius:8px;padding:12px 14px;margin-bottom:12px}
+.verdict b{display:block;font-size:1.08rem}
+.verdict small{color:var(--ink-2);font-size:.85rem}
+.v-block{background:var(--pen-wash);border-left:4px solid var(--pen)} .v-block b{color:var(--pen)}
+.v-warn{background:var(--hl-wash);border-left:4px solid var(--hl)}
+.v-allow{background:var(--go-wash);border-left:4px solid var(--go)} .v-allow b{color:var(--go)}
+.view{font:400 .84rem/1.6 "JetBrains Mono",ui-monospace,monospace;white-space:pre-wrap;word-break:break-word;background:var(--paper);border:1px solid var(--rule);border-radius:8px;padding:12px;max-height:240px;overflow:auto}
+.view mark{color:inherit;border-radius:2px;padding:0 1px}
+.view .m-block{background:var(--pen-wash);box-shadow:inset 0 -2px 0 var(--pen)}
+.view .m-warn{background:var(--hl-wash)}
+.view .m-allow{background:none;text-decoration:underline dotted var(--go);text-underline-offset:3px;text-decoration-thickness:2px}
+.findings{list-style:none;margin:12px 0 0;padding:0;font-size:.92rem}
+.findings li{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;padding:8px 0;border-top:1px solid var(--wash)}
+.findings .what{font-weight:600}
+.findings .why{grid-column:2;color:var(--ink-2);font-size:.86rem}
+.findings code{font-size:.8rem}
+.findings h3{font-size:.9rem;margin:14px 0 2px;color:var(--ink-2);font-weight:600}
+.lab-actions{display:flex;gap:10px;align-items:center;margin-top:14px;flex-wrap:wrap}
+.lab-actions small{color:var(--ink-2)}
+
+/* ---------- tier marks (pills) ---------- */
+.pill{display:inline-block;font-size:.78rem;font-weight:700;padding:.05em .45em;border-radius:3px;line-height:1.5;white-space:nowrap}
+.p-block{color:var(--pen);background:var(--pen-wash)}
+.p-warn{color:var(--ink);background:var(--hl-wash);box-shadow:inset 0 -.5em 0 color-mix(in srgb,var(--hl) 35%,transparent)}
+.p-allow{color:var(--go);background:var(--go-wash)}
+.p-ml{color:var(--ml);background:var(--ml-wash)}
+
+/* ---------- document layout ---------- */
+.doc{max-width:1160px;margin:0 auto;padding:16px 16px 96px;display:grid;grid-template-columns:minmax(0,1fr);gap:0}
+@media (min-width:1180px){
+  .doc{grid-template-columns:220px minmax(0,860px);gap:56px}
+  .rail{position:sticky;top:20px;align-self:start;max-height:calc(100vh - 40px);overflow:auto}
+  .rail nav.toc ol{columns:1}
+}
+nav.toc{font-size:.9rem;border:1px solid var(--rule);background:var(--sheet);border-radius:10px;padding:14px 16px;margin:0 0 24px}
+nav.toc b{display:block;margin-bottom:6px}
+nav.toc ol{margin:0;padding-left:1.6em;columns:2;column-gap:28px}
+nav.toc li{margin:3px 0;break-inside:avoid}
+nav.toc a{color:var(--ink-2);text-decoration:none}
+nav.toc a:hover{color:var(--ink);text-decoration:underline}
+nav.toc a[aria-current="true"]{color:var(--pencil);font-weight:600}
+@media (min-width:1180px){nav.toc{border:none;background:none;padding:0}}
+@media (max-width:640px){nav.toc ol{columns:1}}
+.main h2{font-size:1.6rem;line-height:1.25;letter-spacing:-.012em;margin:64px 0 14px}
+.main > h2:first-of-type{margin-top:36px}
+.main h3{font-size:1.12rem;margin:30px 0 8px}
+.main p,.main li{max-width:72ch}
+.main .sub{color:var(--ink-2);font-size:.92rem}
+.table-wrap{overflow-x:auto;margin:14px 0}
+table{border-collapse:collapse;width:100%;font-size:.9rem;background:var(--sheet)}
+th,td{border:1px solid var(--rule);padding:8px 10px;text-align:left;vertical-align:top}
+th{background:var(--wash);font-weight:600}
+.callout{border-left:3px solid var(--pencil);background:var(--sheet);padding:14px 18px;border-radius:0 8px 8px 0;margin:18px 0}
+.callout.warn{border-color:var(--hl);background:var(--hl-wash)}
+.callout.block{border-color:var(--pen);background:var(--pen-wash)}
+.callout.ok{border-color:var(--go);background:var(--go-wash)}
+figure{margin:22px 0;background:var(--sheet);border:1px solid var(--rule);border-radius:10px;padding:16px}
+figcaption{color:var(--ink-2);font-size:.88rem;margin-top:10px;max-width:80ch}
+svg{width:100%;height:auto;display:block}
+svg text{fill:var(--ink);font-family:"Public Sans",system-ui,sans-serif;font-size:13px}
+svg .t-s{font-size:11.5px;fill:var(--ink-2)}
+svg .t-b{font-weight:600}
+svg .box{fill:var(--sheet);stroke:var(--rule);stroke-width:1.2}
+svg .zone{fill:var(--wash);stroke:var(--rule);stroke-width:1;stroke-dasharray:5 4}
+svg .acc{fill:var(--pencil-wash);stroke:var(--pencil);stroke-width:1.3}
+svg .blk{fill:var(--pen-wash);stroke:var(--pen);stroke-width:1.3}
+svg .wrn{fill:var(--hl-wash);stroke:var(--hl);stroke-width:1.3}
+svg .alw{fill:var(--go-wash);stroke:var(--go);stroke-width:1.3}
+svg .mlb{fill:var(--ml-wash);stroke:var(--ml);stroke-width:1.3;stroke-dasharray:6 4}
+svg .ln{stroke:var(--ink-2);stroke-width:1.4;fill:none}
+svg .ln-acc{stroke:var(--pencil);stroke-width:1.6;fill:none}
+svg .ln-blk{stroke:var(--pen);stroke-width:1.6;fill:none}
+svg .ln-alw{stroke:var(--go);stroke-width:1.6;fill:none}
+svg .ln-ml{stroke:var(--ml);stroke-width:1.4;fill:none;stroke-dasharray:6 4}
+svg .life{stroke:var(--rule);stroke-width:1.2;stroke-dasharray:4 4}
+svg .ah{fill:var(--ink-2)} svg .ah-acc{fill:var(--pencil)} svg .ah-blk{fill:var(--pen)} svg .ah-alw{fill:var(--go)} svg .ah-ml{fill:var(--ml)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+@media (max-width:760px){.grid2{grid-template-columns:1fr}}
+.mock{border:1px solid var(--rule);border-radius:12px;background:var(--sheet);overflow:hidden;font-size:.92rem;align-self:start}
+.mock-h{background:var(--pen-wash);color:var(--pen);padding:10px 14px;font-weight:700;display:flex;justify-content:space-between}
+.mock-b{padding:12px 14px}
+.mock-item{border:1px solid var(--rule);border-radius:8px;padding:8px 10px;margin:8px 0}
+.mock-item b{display:block}
+.mock-item small{color:var(--ink-2)}
+.mock-act{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.mock-act .btn{padding:6px 10px;font-size:.8rem;cursor:default}
+.theme-btn{position:fixed;top:12px;right:12px;z-index:5;font:600 .8rem/1 "Public Sans",system-ui,sans-serif;border:1px solid var(--rule);background:var(--sheet);color:var(--ink);border-radius:999px;padding:8px 12px;cursor:pointer}
+</style>
+</head>
+<body>
+<button class="theme-btn" id="themeBtn" type="button">Dark mode</button>
+<header class="hero">
+<div class="hero-in">
+<p class="byline">PromptGuard design for the Aionix take-home, Senior AI Software Engineer. Prashant Tiwari, 28 October 2026.</p>
+<div class="frame" role="img" aria-label="A chat prompt containing a tax file number, with the number redacted and the message not sent">
+<h1>Here's my tax file number, <span class="secret" data-label="TFN, blocked">123 456 782</span>. Can you fill in the form for me?</h1>
+<div class="frame-foot">
+<span class="frame-note">Not sent. This message contains a tax file number.</span>
+<span class="send-dot" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 16V4M5 9l5-5 5 5"/></svg></span>
+</div>
+</div>
+<p class="lede">PromptGuard is a Chrome extension design that reads a prompt at the moment you press Send, and stops it if it carries data like the number above. Clean prompts go straight through. The check runs inside the keypress, on your device, in a few milliseconds.</p>
+</div>
+</header>
+
+<section class="lab" id="try" aria-labelledby="try-h">
+<div class="lab-in">
+<h2 id="try-h">Try the rules engine</h2>
+<p class="lab-intro">This page runs a cut-down version of the detectors from section 8. Edit the prompt or load an example. Everything is checked in this page, nothing is sent anywhere, and every number in the examples is synthetic.</p>
+<div class="lab-grid">
+<div class="pane">
+<label for="pg-in">Prompt</label>
+<textarea id="pg-in" spellcheck="false"></textarea>
+<div class="presets" role="group" aria-label="Example prompts">
+<button class="btn" type="button" data-preset="mixed" aria-pressed="true">Onboarding email</button>
+<button class="btn" type="button" data-preset="hindi">Hindi and hidden characters</button>
+<button class="btn" type="button" data-preset="csv">Aadhaar and PAN in a CSV</button>
+<button class="btn" type="button" data-preset="patient">Patient note</button>
+<button class="btn" type="button" data-preset="benign">Look-alikes</button>
+</div>
+</div>
+<div class="pane" aria-live="polite">
+<div id="pg-verdict" class="verdict"></div>
+<div id="pg-view" class="view"></div>
+<ul id="pg-list" class="findings"></ul>
+<div class="lab-actions"><button class="btn primary" id="pg-redact" type="button">Redact blocked items</button><small id="pg-redact-note"></small></div>
+</div>
+</div>
+</div>
+</section>
+
+<div class="doc">
+<aside class="rail">
+<nav class="toc"><b>Contents</b>
+<ol>
+<li><a href="#goals">Goals, non-goals, constraints</a></li>
+<li><a href="#trace">Requirements traceability</a></li>
+<li><a href="#live">Live-site findings (Chrome, 28 Oct)</a></li>
+<li><a href="#arch">Architecture</a></li>
+<li><a href="#intercept">Send interception</a></li>
+<li><a href="#chips">Paste chips and attachments</a></li>
+<li><a href="#engine">Detection engine</a></li>
+<li><a href="#detectors">Detector catalogue (categories 1–7)</a></li>
+<li><a href="#context">Context categories 8–10</a></li>
+<li><a href="#fp">Decision tiers and false positives</a></li>
+<li><a href="#ux">Block UX and fixing the prompt</a></li>
+<li><a href="#ml">Optional ML layer and the 1 s guarantee</a></li>
+<li><a href="#perf">Performance budget</a></li>
+<li><a href="#threat">Threat model and limits</a></li>
+<li><a href="#testing">Testing strategy</a></li>
+<li><a href="#repo">Repository layout and milestones</a></li>
+<li><a href="#open">Open questions and risks</a></li>
+<li><a href="#defend">How to present and defend it</a></li>
+</ol></nav>
+</aside>
+<main class="main">
+<div class="callout">
+A Manifest V3 extension intercepts Enter, Send clicks and form submits in the <i>capture phase</i>,
+before the chat app's own handlers run. It scans the composer text plus the full text behind any paste chips with a
+<b>synchronous, deterministic rules engine</b>: normalisation, then regex candidates, checksum validators, multilingual
+context words and suppressors. That takes a few milliseconds, so clean prompts pass with no hold and no re-dispatch;
+dirty prompts are stopped and explained in a Shadow-DOM panel with one-click Redact. A MAIN-world fetch/XHR wrapper is the
+backstop that makes "send again" impossible. An optional on-device model (MiniLM + calibrated head) adds recall for the
+context categories 8–10. It runs <i>before</i> Send, is cached, can only escalate, and sits behind a hard deadline, so
+the 1-second limit holds by design.
+</div>
+
+
+<!-- ============================================================ -->
+<h2 id="goals">1. Goals, non-goals, constraints</h2>
+<div class="grid2">
+<div>
+<h3>Goals</h3>
+<ul>
+<li>Block the 10 high-risk categories on claude.ai and chatgpt.com (Gemini as a bonus).</li>
+<li>Check on Enter and on Send; explain what was found and why.</li>
+<li>Clean prompts: no visible delay. Decision ≤ 1 s after Send, everything combined.</li>
+<li>Paste chips are scanned; removing a chip lifts the block.</li>
+<li>A block cannot be bypassed by pressing Send again; the user gets a way to fix the prompt.</li>
+</ul>
+</div>
+<div>
+<h3>Non-goals (v1)</h3>
+<ul>
+<li>Images, PDFs and OCR (Aionix's stack has Textract, so this is the natural next step).</li>
+<li>Other browsers, desktop/mobile apps, other AI sites (the adapters make adding sites cheap).</li>
+<li>Admin console and audit backend (only the telemetry event schema is defined).</li>
+<li>Stopping a determined insider (see the <a href="#threat">threat model</a>).</li>
+</ul>
+</div>
+</div>
+<h3>Hard constraints</h3>
+<ul>
+<li><b>On-device only.</b> Sending a prompt to a cloud classifier would leak the data we are protecting.</li>
+<li><b>Precision over recall for hard blocks.</b> False blocks erode trust and lead to uninstalls, and an uninstalled guard catches nothing.</li>
+<li><b>No dependency on private app state.</b> We cannot reach React or ProseMirror instances from a content script, so we read the DOM and the network.</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2 id="trace">2. Requirements traceability</h2>
+<div class="table-wrap"><table>
+<tr><th>Requirement / edge case</th><th>Design element</th><th>Proved by</th></tr>
+<tr><td>claude.ai + chatgpt.com (+ Gemini)</td><td>Site adapters with verified selectors and generic fallbacks (§3, §5)</td><td>E2E on fixture pages + live smoke checklist</td></tr>
+<tr><td>Check on Send or Enter</td><td>Capture-phase <code>keydown</code>/<code>click</code>/<code>submit</code> on <code>window</code> (§5)</td><td>E2E: Enter, Shift+Enter, IME, button, form submit</td></tr>
+<tr><td>Block + explain</td><td>Findings with category, masked value, location and reason; Shadow-DOM panel (§11)</td><td>Unit (reason strings) + E2E screenshot</td></tr>
+<tr><td>No visible delay, ≤ 1 s</td><td>Synchronous rules (p95 &lt; 20 ms at 100 KB); ML pre-computed with a 700 ms deadline (§12, §13)</td><td>Benchmark suite; <code>performance.now()</code> telemetry</td></tr>
+<tr><td>Large paste becomes a chip</td><td>Paste capture stores full text; chip reconciliation by MutationObserver (§6)</td><td>E2E: paste 12 KB → chip → blocked → remove → sends</td></tr>
+<tr><td>Item buried in a long prompt</td><td>Full-text scan, no truncation; chunked for &gt; 1 MB</td><td>Corpus: secret at offset 95%</td></tr>
+<tr><td>Benign look-alikes pass</td><td>Validators + test-value allowlist + suppressors + code-reference rule (§9, §10)</td><td>Negative corpus; false-positive rate on a benign set</td></tr>
+<tr><td>Spaces/dashes, other languages, code, JSON, CSV, unlabelled password</td><td>Normalisation with offset map; labels in several languages; format-agnostic regex; entropy detector (§7)</td><td>Positive corpus per variant</td></tr>
+<tr><td>Benign text plus one real secret</td><td>Per-finding decisions; any Block finding blocks the whole send</td><td>Corpus "mixed" cases</td></tr>
+<tr><td>Can't bypass by re-sending; user can fix</td><td>Block state recomputed on every attempt; network backstop; Redact / Remove chip (§5, §11)</td><td>E2E: double Enter, rapid clicks, programmatic click</td></tr>
+<tr><td>Categories 8–10: decide and explain</td><td>Co-occurrence of identity and sensitive content; markers and fingerprints; Warn tier (§9)</td><td>Decision table + corpus</td></tr>
+</table></div>
+
+<!-- ============================================================ -->
+<h2 id="live">3. Live-site findings (Chrome debugging, 28 Oct 2026)</h2>
+<p>Checked with Claude in Chrome by reading the DOM and dispatching synthetic paste events of dummy text. Nothing was sent.
+These selectors <b>will</b> drift, which is why they sit in one adapter file per site with generic fallbacks.</p>
+<div class="table-wrap"><table>
+<tr><th></th><th>claude.ai</th><th>chatgpt.com</th><th>gemini.google.com</th></tr>
+<tr><td>Composer</td><td><code>div.tiptap.ProseMirror[contenteditable][data-testid="chat-input"]</code>, aria "Write your prompt to Claude"</td><td><code>div.ProseMirror[contenteditable]</code> inside a <code>&lt;form&gt;</code></td><td><code>rich-textarea .ql-editor[contenteditable][role=textbox]</code> (Quill)</td></tr>
+<tr><td>Send</td><td><code>button[data-testid="chat-input-send"]</code>, aria "Send message", <code>type=button</code> (JS click handler, no form)</td><td><code>button[aria-label="Send"]</code>, <code>type=submit</code> in the form; only rendered once there is text (the empty state shows "Start Voice")</td><td><code>button[aria-label="Send message"]</code>, rendered once there is text</td></tr>
+<tr><td>Paste → chip</td><td>3,900 chars stayed inline; <b>4,500 became a chip</b>. Chip = <code>[data-testid="file-thumbnail"]</code> labelled "PASTED"</td><td>8,000 stayed inline; <b>10,000 became a chip</b> (logged-out session)</td><td>Not tested (bonus site)</td></tr>
+<tr><td>Chip contents in DOM?</td><td><b>No:</b> only a ~313-char preview. The full text must be captured at paste time.</td><td><b>No:</b> ~80-char preview + "…", status "Adding pasted text…" (looks like an upload at paste time)</td><td>n/a</td></tr>
+<tr><td>Remove chip</td><td><code>button[aria-label^="Remove Pasted text"]</code></td><td><code>button[aria-label="Remove pasted text attachment"]</code></td><td>n/a</td></tr>
+<tr><td>Synthetic paste</td><td>Accepted (ProseMirror called <code>preventDefault</code> and handled it)</td><td>Accepted</td><td>Ignored by Quill; <code>insertText</code> works (matters only for tests)</td></tr>
+</table></div>
+<div class="callout warn"><b>Consequences for the design.</b>
+(1) The chip's text is <i>not</i> in the DOM, so the paste listener must store the clipboard text itself.
+(2) ChatGPT appears to upload pasted text as soon as the chip is created, <i>before</i> Send, which the network panel should confirm.
+Default: allow the chip and block at Send, as the brief asks. Optional strict mode: refuse a dirty paste outright
+(§6). (3) The thresholds differ per site and change between releases, so we never rely on them. We store every paste
+above a small size, whether or not it becomes a chip.</div>
+
+<!-- ============================================================ -->
+<h2 id="arch">4. Architecture</h2>
+<figure>
+<svg viewBox="0 0 920 470" role="img" aria-label="Component architecture">
+<defs>
+<marker id="a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0,0 L10,5 L0,10 z"/></marker>
+<marker id="a1acc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah-acc" d="M0,0 L10,5 L0,10 z"/></marker>
+<marker id="a1ml" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah-ml" d="M0,0 L10,5 L0,10 z"/></marker>
+</defs>
+<!-- page zone -->
+<rect class="zone" x="10" y="10" width="250" height="450" rx="10"/>
+<text x="24" y="34" class="t-b">Chat web app (page)</text>
+<text x="24" y="52" class="t-s">claude.ai, chatgpt.com, gemini</text>
+<rect class="box" x="28" y="72" width="214" height="52" rx="8"/><text x="40" y="94" class="t-b">Composer</text><text x="40" y="112" class="t-s">ProseMirror / Quill</text>
+<rect class="box" x="28" y="140" width="214" height="52" rx="8"/><text x="40" y="162" class="t-b">Send button / form</text><text x="40" y="180" class="t-s">click, submit, Enter</text>
+<rect class="box" x="28" y="208" width="214" height="52" rx="8"/><text x="40" y="230" class="t-b">Paste chips</text><text x="40" y="248" class="t-s">preview only, text not in DOM</text>
+<rect class="box" x="28" y="380" width="214" height="58" rx="8"/><text x="40" y="403" class="t-b">App network calls</text><text x="40" y="421" class="t-s">fetch / XHR to chat API</text>
+
+<!-- isolated world -->
+<rect class="zone" x="300" y="10" width="300" height="300" rx="10"/>
+<text x="314" y="34" class="t-b">Content script (isolated world)</text>
+<rect class="acc" x="318" y="52" width="264" height="48" rx="8"/><text x="330" y="74" class="t-b">Interceptor (capture phase)</text><text x="330" y="91" class="t-s">keydown, click, submit, paste, drop</text>
+<rect class="box" x="318" y="112" width="264" height="44" rx="8"/><text x="330" y="132" class="t-b">Site adapter</text><text x="330" y="148" class="t-s">selectors + generic fallbacks</text>
+<rect class="box" x="318" y="168" width="264" height="44" rx="8"/><text x="330" y="188" class="t-b">Paste &amp; chip tracker</text><text x="330" y="204" class="t-s">full text + MutationObserver</text>
+<rect class="box" x="318" y="224" width="264" height="70" rx="8"/><text x="330" y="244" class="t-b">Block panel (Shadow DOM)</text><text x="330" y="262" class="t-s">findings, masked values, reasons</text><text x="330" y="279" class="t-s">Redact, Remove chip, Highlight</text>
+
+<!-- main world -->
+<rect class="zone" x="300" y="340" width="300" height="120" rx="10"/>
+<text x="314" y="364" class="t-b">Backstop (MAIN world, document_start)</text>
+<rect class="acc" x="318" y="378" width="264" height="62" rx="8"/><text x="330" y="401" class="t-b">fetch / XHR wrapper</text><text x="330" y="420" class="t-s">scans outgoing chat payload;</text><text x="330" y="434" class="t-s">rejects if any Block finding</text>
+
+<!-- engine -->
+<rect class="zone" x="640" y="10" width="270" height="450" rx="10"/>
+<text x="654" y="34" class="t-b">Shared engine (pure TS)</text>
+<rect class="acc" x="658" y="52" width="234" height="150" rx="8"/>
+<text x="670" y="74" class="t-b">Rules engine (sync)</text>
+<text x="670" y="96" class="t-s">1 normalise + offset map</text>
+<text x="670" y="114" class="t-s">2 regex candidates</text>
+<text x="670" y="132" class="t-s">3 validators (Luhn, mod 11, …)</text>
+<text x="670" y="150" class="t-s">4 context words (multilingual)</text>
+<text x="670" y="168" class="t-s">5 suppressors / allowlist</text>
+<text x="670" y="186" class="t-s">6 score → Block / Warn / Allow</text>
+<rect class="box" x="658" y="218" width="234" height="56" rx="8"/><text x="670" y="240" class="t-b">Policy</text><text x="670" y="258" class="t-s">chrome.storage.managed (admin)</text>
+<rect class="box" x="658" y="288" width="234" height="44" rx="8"/><text x="670" y="308" class="t-b">Verdict cache</text><text x="670" y="324" class="t-s">hash(text) → findings</text>
+<rect class="mlb" x="658" y="350" width="234" height="90" rx="8"/><text x="670" y="372" class="t-b">Optional ML (offscreen doc)</text><text x="670" y="391" class="t-s">MiniLM-L6 int8 + calibrated LR</text><text x="670" y="408" class="t-s">categories 8–10, escalate only</text><text x="670" y="425" class="t-s">runs before Send, cached</text>
+
+<!-- arrows -->
+<path class="ln-acc" d="M242,98 L300,98 L318,80" marker-end="url(#a1acc)"/>
+<path class="ln-acc" d="M242,166 L290,166 L290,86 L318,86" marker-end="url(#a1acc)"/>
+<path class="ln" d="M242,234 L318,190" marker-end="url(#a1)"/>
+<path class="ln-acc" d="M582,76 L658,100" marker-end="url(#a1acc)"/>
+<path class="ln" d="M582,190 L620,190 L620,130 L658,130" marker-end="url(#a1)"/>
+<path class="ln" d="M658,170 L600,250 L582,256" marker-end="url(#a1)"/>
+<path class="ln-acc" d="M242,408 L318,408" marker-end="url(#a1acc)"/>
+<path class="ln-acc" d="M582,408 L626,408 L626,180 L658,180" marker-end="url(#a1acc)"/>
+<path class="ln" d="M775,218 L775,204" marker-end="url(#a1)"/>
+<path class="ln-ml" d="M775,350 L775,334" marker-end="url(#a1ml)"/>
+<path class="ln" d="M760,288 L760,204" marker-end="url(#a1)"/>
+</svg>
+<figcaption>Fig. 1. Components. Blue = the enforcement path. The engine is bundled into both the isolated-world and
+MAIN-world scripts, so each can decide without a round-trip. Dashed purple = optional and never on the critical path.</figcaption>
+</figure>
+
+<div class="table-wrap"><table>
+<tr><th>Component</th><th>Responsibility</th><th>Why this way</th></tr>
+<tr><td>Interceptor</td><td>Catch every send attempt before the app sees it; call the engine synchronously; let clean events through untouched</td><td>Capture listeners on <code>window</code> run before React's root listeners and ProseMirror's handlers, so no re-dispatch is needed for clean prompts</td></tr>
+<tr><td>Site adapter</td><td><code>getComposer()</code>, <code>isSendTarget(el)</code>, <code>getChips()</code>, <code>chipPreview(chip)</code>, <code>redact(span)</code></td><td>Keeps DOM fragility in one file per site; generic fallback = focused contenteditable + nearest button whose aria-label matches /send/i</td></tr>
+<tr><td>Paste &amp; chip tracker</td><td>Store full pasted/dropped text; match it to chips by preview prefix; drop it when the chip disappears</td><td>The chip's text is not in the DOM (§3)</td></tr>
+<tr><td>Block panel</td><td>Explain findings; Redact; Remove chip; rescan on every edit</td><td>Shadow DOM isolates styles both ways; no page CSS leaks</td></tr>
+<tr><td>Backstop</td><td>Wrap <code>fetch</code>/<code>XMLHttpRequest.send</code> for chat endpoints; scan the JSON body; reject if dirty</td><td>Defence in depth for routes the UI listeners miss (new buttons, keyboard shortcuts, "edit and resend", retries)</td></tr>
+<tr><td>Rules engine</td><td><code>scan(text, opts) → Finding[]</code>, pure and deterministic</td><td>Unit-testable in Node; identical results in both worlds</td></tr>
+<tr><td>Policy</td><td>Admin allowlists, org fingerprints, strict-paste mode, warn-override setting</td><td><code>chrome.storage.managed</code> means users cannot edit it</td></tr>
+<tr><td>Optional ML</td><td>Recall for categories 8–10</td><td>See §12; it is an addition, not a dependency</td></tr>
+</table></div>
+
+<h3>Manifest sketch</h3>
+<pre><code>{
+  "manifest_version": 3,
+  "name": "PromptGuard",
+  "permissions": ["storage", "offscreen"],
+  "host_permissions": ["https://claude.ai/*", "https://chatgpt.com/*", "https://gemini.google.com/*"],
+  "content_scripts": [
+    { "matches": ["https://claude.ai/*", "https://chatgpt.com/*", "https://gemini.google.com/*"],
+      "js": ["content.js"], "run_at": "document_start", "all_frames": false },
+    { "matches": ["https://claude.ai/*", "https://chatgpt.com/*", "https://gemini.google.com/*"],
+      "js": ["backstop.js"], "run_at": "document_start", "world": "MAIN" }
+  ],
+  "background": { "service_worker": "sw.js", "type": "module" },
+  "storage": { "managed_schema": "policy.schema.json" },
+  "content_security_policy": { "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'" }
+}</code></pre>
+<p>No <code>&lt;all_urls&gt;</code>, no remote code, no network permission. The extension never calls out (privacy review is trivial).</p>
+
+<!-- ============================================================ -->
+<h2 id="intercept">5. Send interception</h2>
+<figure>
+<svg viewBox="0 0 920 520" role="img" aria-label="Send interception sequence">
+<defs>
+<marker id="a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="ah" d="M0,0 L10,5 L0,10 z"/></marker>
+<marker id="a2b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="ah-blk" d="M0,0 L10,5 L0,10 z"/></marker>
+<marker id="a2g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="ah-alw" d="M0,0 L10,5 L0,10 z"/></marker>
+</defs>
+<!-- heads -->
+<rect class="box" x="20" y="10" width="110" height="36" rx="6"/><text x="75" y="33" text-anchor="middle" class="t-b">User</text>
+<rect class="acc" x="175" y="10" width="140" height="36" rx="6"/><text x="245" y="33" text-anchor="middle" class="t-b">Interceptor</text>
+<rect class="acc" x="360" y="10" width="120" height="36" rx="6"/><text x="420" y="33" text-anchor="middle" class="t-b">Engine</text>
+<rect class="box" x="525" y="10" width="120" height="36" rx="6"/><text x="585" y="33" text-anchor="middle" class="t-b">Panel</text>
+<rect class="box" x="690" y="10" width="210" height="36" rx="6"/><text x="795" y="33" text-anchor="middle" class="t-b">App handler → network</text>
+<line class="life" x1="75" y1="46" x2="75" y2="510"/><line class="life" x1="245" y1="46" x2="245" y2="510"/>
+<line class="life" x1="420" y1="46" x2="420" y2="510"/><line class="life" x1="585" y1="46" x2="585" y2="510"/><line class="life" x1="795" y1="46" x2="795" y2="510"/>
+
+<path class="ln" d="M75,76 L243,76" marker-end="url(#a2)"/><text x="84" y="70" class="t-s">Enter / Send click (capture phase, runs first)</text>
+<path class="ln" d="M245,104 L418,104" marker-end="url(#a2)"/><text x="254" y="98" class="t-s">scan(composer + chip texts)</text>
+<rect class="acc" x="414" y="110" width="12" height="28"/><text x="434" y="130" class="t-s">≈ 2–20 ms, sync</text>
+<path class="ln" d="M418,148 L247,148" marker-end="url(#a2)"/><text x="262" y="142" class="t-s">verdict</text>
+
+<!-- alt allow -->
+<rect x="150" y="164" width="760" height="70" rx="6" fill="none" stroke="var(--allow)" stroke-dasharray="5 4"/>
+<text x="158" y="180" class="t-s" style="fill:var(--allow)">alt: Allow</text>
+<path class="ln-alw" d="M245,206 L793,206" marker-end="url(#a2g)"/><text x="300" y="200" class="t-s">do nothing → event continues → app sends (zero added delay)</text>
+
+<!-- alt block -->
+<rect x="150" y="246" width="760" height="140" rx="6" fill="none" stroke="var(--block)" stroke-dasharray="5 4"/>
+<text x="158" y="262" class="t-s" style="fill:var(--block)">alt: Block (or Warn)</text>
+<path class="ln-blk" d="M245,286 L330,286"/><text x="254" y="280" class="t-s">preventDefault + stopImmediatePropagation</text>
+<text x="700" y="288" class="t-s" style="fill:var(--block)">app never sees the event ✕</text>
+<path class="ln-blk" d="M245,316 L583,316" marker-end="url(#a2b)"/><text x="300" y="310" class="t-s">show(findings, masked, reasons)</text>
+<path class="ln" d="M585,342 L77,342" marker-end="url(#a2)"/><text x="300" y="336" class="t-s">"TFN on line 14, checksum valid": Redact / Remove chip</text>
+<path class="ln" d="M75,372 L243,372" marker-end="url(#a2)"/><text x="84" y="366" class="t-s">edits → rescan on input</text>
+
+<!-- backstop -->
+<rect x="150" y="400" width="760" height="100" rx="6" fill="none" stroke="var(--accent)" stroke-dasharray="5 4"/>
+<text x="158" y="416" class="t-s" style="fill:var(--accent)">backstop: any send path the UI listeners missed</text>
+<path class="ln" d="M793,446 L422,446" marker-end="url(#a2)"/><text x="470" y="440" class="t-s">MAIN-world fetch wrapper: scan(request body)</text>
+<path class="ln-blk" d="M420,476 L793,476" marker-end="url(#a2b)"/><text x="470" y="470" class="t-s">dirty → reject Promise / abort XHR + notify panel</text>
+</svg>
+<figcaption>Fig. 2. Because the scan is synchronous, the decision is made <i>inside</i> the original event. Clean events are never
+cancelled or replayed, which avoids the most fragile part of most "intercept and resend" designs.</figcaption>
+</figure>
+
+<h3>Event rules</h3>
+<ul>
+<li><b>Enter:</b> handle when <code>key === "Enter"</code> and none of <code>shiftKey</code>, <code>isComposing</code>, <code>keyCode === 229</code> (IME:
+Japanese, Chinese and Hindi input use Enter to confirm a candidate). Ctrl/Cmd+Enter are also treated as send.</li>
+<li><b>Click:</b> listen to <code>pointerdown</code>, <code>mousedown</code> and <code>click</code> on the send button. Some apps act on pointerdown,
+so we block all three when dirty.</li>
+<li><b>Submit:</b> ChatGPT's Send is <code>type=submit</code>, so we also catch <code>submit</code> in capture.</li>
+<li><b>Re-send attempts:</b> there is no "blocked once, allowed next time" state. Every attempt is rescanned, so pressing Send ten times
+is blocked ten times until the content changes.</li>
+<li><b>Re-entrancy:</b> the Warn tier's "Send anyway" sets a one-shot token bound to <code>hash(text)</code> and calls <code>button.click()</code>.
+The interceptor and the backstop both honour the token once, and only for that exact text.</li>
+</ul>
+<pre><code>// content/interceptor.ts (sketch)
+const onKey = (e: KeyboardEvent) =&gt; {
+  if (e.key !== "Enter" || e.shiftKey || e.isComposing || e.keyCode === 229) return;
+  if (!adapter.isComposer(e.target)) return;
+  guard(e);
+};
+const onSendPointer = (e: Event) =&gt; { if (adapter.isSendTarget(e.target as Element)) guard(e); };
+
+function guard(e: Event) {
+  const text = adapter.getComposerText() + chipTracker.liveTexts().join("\n");
+  const t0 = performance.now();
+  const verdict = verdictCache.get(text) ?? scan(text, policy);   // sync, ms
+  metrics.record(performance.now() - t0);
+  if (verdict.tier === "allow" || oneShot.consume(text)) return;  // untouched
+  e.preventDefault(); e.stopImmediatePropagation();
+  panel.show(verdict);
+}
+for (const t of ["pointerdown", "mousedown", "click"]) window.addEventListener(t, onSendPointer, true);
+window.addEventListener("keydown", onKey, true);
+window.addEventListener("submit", e =&gt; guard(e), true);</code></pre>
+
+<!-- ============================================================ -->
+<h2 id="chips">6. Paste chips and attachments</h2>
+<figure>
+<svg viewBox="0 0 920 330" role="img" aria-label="Paste chip lifecycle">
+<defs>
+<marker id="a3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="ah" d="M0,0 L10,5 L0,10 z"/></marker>
+<marker id="a3b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="ah-blk" d="M0,0 L10,5 L0,10 z"/></marker>
+<marker id="a3g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="ah-alw" d="M0,0 L10,5 L0,10 z"/></marker>
+</defs>
+<rect class="box" x="20" y="130" width="140" height="56" rx="28"/><text x="90" y="155" text-anchor="middle" class="t-b">Paste / drop</text><text x="90" y="172" text-anchor="middle" class="t-s">capture listener</text>
+<rect class="acc" x="210" y="130" width="170" height="56" rx="10"/><text x="295" y="152" text-anchor="middle" class="t-b">Store full text</text><text x="295" y="170" text-anchor="middle" class="t-s">{id, text, prefix, hash}</text>
+<rect class="box" x="430" y="40" width="190" height="56" rx="10"/><text x="525" y="63" text-anchor="middle" class="t-b">Inline in composer</text><text x="525" y="81" text-anchor="middle" class="t-s">scanned as composer text</text>
+<rect class="box" x="430" y="220" width="190" height="56" rx="10"/><text x="525" y="243" text-anchor="middle" class="t-b">Chip appears</text><text x="525" y="261" text-anchor="middle" class="t-s">match by preview prefix</text>
+<rect class="blk" x="680" y="150" width="220" height="56" rx="10"/><text x="790" y="173" text-anchor="middle" class="t-b">Chip dirty → Send blocked</text><text x="790" y="191" text-anchor="middle" class="t-s">panel: "Pasted text #1: AWS key"</text>
+<rect class="alw" x="680" y="250" width="220" height="56" rx="10"/><text x="790" y="273" text-anchor="middle" class="t-b">Chip removed</text><text x="790" y="291" text-anchor="middle" class="t-s">drop text → rescan → unblock</text>
+<rect class="alw" x="680" y="40" width="220" height="56" rx="10"/><text x="790" y="63" text-anchor="middle" class="t-b">Chip clean</text><text x="790" y="81" text-anchor="middle" class="t-s">sends normally</text>
+<path class="ln" d="M160,158 L208,158" marker-end="url(#a3)"/>
+<path class="ln" d="M380,150 L428,80" marker-end="url(#a3)"/><text x="398" y="100" text-anchor="end" class="t-s">≤ threshold</text>
+<path class="ln" d="M380,168 L428,240" marker-end="url(#a3)"/><text x="404" y="230" text-anchor="end" class="t-s">&gt; threshold</text>
+<path class="ln-blk" d="M620,240 L678,190" marker-end="url(#a3b)"/>
+<path class="ln-alw" d="M620,232 L678,80" marker-end="url(#a3g)"/>
+<path class="ln-alw" d="M790,206 L790,248" marker-end="url(#a3g)"/><text x="800" y="232" class="t-s">user clicks ✕ on chip</text>
+<text x="210" y="300" class="t-s">MutationObserver on the composer container keeps the chip ↔ text map in sync</text>
+<text x="210" y="318" class="t-s">every Send also reconciles from scratch (chips present now ↔ stored texts)</text>
+</svg>
+<figcaption>Fig. 3. We store every paste above 1,000 chars, whatever the site decides, because the chip threshold differs per site
+(claude.ai about 4.0–4.5 K chars, ChatGPT about 8–10 K in our test) and changes between releases.</figcaption>
+</figure>
+<ul>
+<li><b>Capture:</b> a capture-phase <code>paste</code> listener reads <code>e.clipboardData.getData("text/plain")</code>. This works regardless of what
+the app then does with the paste. Dropped or uploaded <code>.txt/.csv/.json/.md/.log/.env/.sql</code> files are read with <code>FileReader</code>
+from capture <code>drop</code> and <code>change</code> events on <code>input[type=file]</code> (claude.ai: <code>[data-testid=file-upload]</code>).</li>
+<li><b>Matching:</b> each chip shows a preview (claude.ai ≈ 313 chars, ChatGPT ≈ 80 chars). Normalise whitespace and match it as a prefix
+of stored texts. If two stored texts share a prefix, use the order chips appeared. If nothing matches (e.g. a chip restored from a draft), treat it as
+<i>unknown</i>; the backstop still sees the real payload at send time.</li>
+<li><b>Removal:</b> the observer sees the chip node leave and drops its text; the panel rescans immediately and unblocks if clean. The panel's
+"Remove attachment" button clicks the site's own remove button (aria labels in §3), so app state stays consistent.</li>
+<li><b>ChatGPT uploads at paste time:</b> to be confirmed in the Network panel. If confirmed, the content leaves the browser before Send.
+v1 default follows the brief (chip allowed, Send blocked, removal lifts it), because only the conversation request reaches the model. The admin <code>strictPaste</code>
+policy instead cancels a dirty paste and shows the panel, so the text never becomes a chip or an upload. Raise this with the CTO as a finding.</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2 id="engine">7. Detection engine</h2>
+<figure>
+<svg viewBox="0 0 920 290" role="img" aria-label="Detection pipeline">
+<defs><marker id="a4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="ah" d="M0,0 L10,5 L0,10 z"/></marker></defs>
+<rect class="box" x="10" y="30" width="130" height="90" rx="10"/><text x="75" y="58" text-anchor="middle" class="t-b">Raw text</text><text x="75" y="78" text-anchor="middle" class="t-s">composer +</text><text x="75" y="94" text-anchor="middle" class="t-s">chip texts</text>
+<rect class="acc" x="170" y="30" width="200" height="90" rx="10"/><text x="270" y="54" text-anchor="middle" class="t-b">1, Normalise</text><text x="270" y="74" text-anchor="middle" class="t-s">NFKC, Unicode digits → 0-9</text><text x="270" y="90" text-anchor="middle" class="t-s">strip zero-width, unify dashes</text><text x="270" y="106" text-anchor="middle" class="t-s">keep offset map → original</text>
+<rect class="acc" x="400" y="30" width="200" height="90" rx="10"/><text x="500" y="54" text-anchor="middle" class="t-b">2, Candidates</text><text x="500" y="74" text-anchor="middle" class="t-s">precompiled regex per detector</text><text x="500" y="90" text-anchor="middle" class="t-s">separator-tolerant digit runs</text><text x="500" y="106" text-anchor="middle" class="t-s">bounded quantifiers (no ReDoS)</text>
+<rect class="acc" x="630" y="30" width="280" height="90" rx="10"/><text x="770" y="54" text-anchor="middle" class="t-b">3, Validate</text><text x="770" y="74" text-anchor="middle" class="t-s">Luhn, TFN mod 11, ABN mod 89, Verhoeff</text><text x="770" y="90" text-anchor="middle" class="t-s">Medicare, IBAN mod 97, MRZ 7-3-1</text><text x="770" y="106" text-anchor="middle" class="t-s">SSN rules, PAN structure, entropy</text>
+<rect class="acc" x="630" y="170" width="280" height="90" rx="10"/><text x="770" y="194" text-anchor="middle" class="t-b">4, Context (±50 chars, same record)</text><text x="770" y="214" text-anchor="middle" class="t-s">labels in EN, HI, ES, FR, DE, PT, ZH, JA, AR</text><text x="770" y="230" text-anchor="middle" class="t-s">JSON key / CSV header / code assignment</text><text x="770" y="246" text-anchor="middle" class="t-s">nearby person name (for ABN/PAN)</text>
+<rect class="acc" x="400" y="170" width="200" height="90" rx="10"/><text x="500" y="194" text-anchor="middle" class="t-b">5, Suppress</text><text x="500" y="214" text-anchor="middle" class="t-s">test values, placeholders</text><text x="500" y="230" text-anchor="middle" class="t-s">order#/invoice, masked, refs</text><text x="500" y="246" text-anchor="middle" class="t-s">admin allowlist (downgrade only)</text>
+<rect class="box" x="170" y="170" width="200" height="90" rx="10"/><text x="270" y="194" text-anchor="middle" class="t-b">6, Score → tier</text><text x="270" y="216" text-anchor="middle" class="t-s">base + validator + context</text><text x="270" y="232" text-anchor="middle" class="t-s">− suppressors (floor rules)</text><text x="270" y="248" text-anchor="middle" class="t-s">per-category thresholds</text>
+<rect class="blk" x="10" y="160" width="130" height="30" rx="6"/><text x="75" y="180" text-anchor="middle" class="t-b">Block</text>
+<rect class="wrn" x="10" y="200" width="130" height="30" rx="6"/><text x="75" y="220" text-anchor="middle" class="t-b">Warn</text>
+<rect class="alw" x="10" y="240" width="130" height="30" rx="6"/><text x="75" y="260" text-anchor="middle" class="t-b">Allow</text>
+<path class="ln" d="M140,75 L168,75" marker-end="url(#a4)"/><path class="ln" d="M370,75 L398,75" marker-end="url(#a4)"/>
+<path class="ln" d="M600,75 L628,75" marker-end="url(#a4)"/><path class="ln" d="M770,120 L770,168" marker-end="url(#a4)"/>
+<path class="ln" d="M630,215 L602,215" marker-end="url(#a4)"/><path class="ln" d="M400,215 L372,215" marker-end="url(#a4)"/>
+<path class="ln" d="M170,215 L142,175" marker-end="url(#a4)"/><path class="ln" d="M170,215 L142,215" marker-end="url(#a4)"/><path class="ln" d="M170,215 L142,255" marker-end="url(#a4)"/>
+</svg>
+<figcaption>Fig. 4. One pass per detector over normalised text. Every finding keeps its original span (via the offset map) for highlighting and Redact.</figcaption>
+</figure>
+
+<h3>Normalisation details</h3>
+<ul>
+<li><b>NFKC</b> folds full-width <code>４２４２</code> and compatibility forms. Any <code>\p{Nd}</code> digit (Devanagari <code>१२३</code>, Arabic-Indic <code>١٢٣</code>,
+Bengali, Thai…) maps to ASCII using the Unicode numeric value.</li>
+<li>Remove zero-width characters (<code>U+200B–200D, U+2060, U+FEFF</code>) and soft hyphens; map all dash variants and NBSP / thin spaces to a plain separator.</li>
+<li>Digit-run regexes allow <code>[ \-. /]?</code> between digits, so <code>4111-1111 1111.1111</code> is one candidate.</li>
+<li>Code, JSON and CSV need no parser for detection: regexes run on raw text. Light structure parsing (JSON keys, CSV header row, line-level
+<code>key = value</code>) is used only for context and for the "same record" rule.</li>
+<li>Escapes: decode <code>\uXXXX</code> sequences and URL-encoding inside candidate windows only (cheap), so <code>"password"</code> still reads as "password".</li>
+</ul>
+
+<h3>Finding contract</h3>
+<pre><code>type Tier = "block" | "warn" | "allow";
+interface Finding {
+  category: 1|2|3|4|5|6|7|8|9|10;         // brief's numbering
+  detector: string;                       // "tfn", "aws_access_key", "pg_conn_string", …
+  span: [number, number];                 // offsets in ORIGINAL text
+  source: "composer" | { chipId: string };
+  masked: string;                         // "123 ••• •82" (never the raw value)
+  confidence: number;                     // 0..1 after context/suppressors
+  tier: Tier;
+  reason: string;                         // "Tax File Number: checksum valid, labelled 'TFN'"
+}</code></pre>
+
+<!-- ============================================================ -->
+<h2 id="detectors">8. Detector catalogue (categories 1–7)</h2>
+<div class="table-wrap"><table>
+<tr><th>#</th><th>Detector</th><th>Candidate</th><th>Validator</th><th>Context / suppressors</th><th>Default</th></tr>
+<tr><td>1</td><td>Provider API keys</td><td><code>sk-ant-api03-…</code>, <code>sk-proj-…</code>, <code>AKIA[0-9A-Z]{16}</code>, <code>ghp_…</code>, <code>github_pat_…</code>, <code>xox[abpr]-…</code>, <code>AIza[\w-]{35}</code>, <code>sk_live_…</code>, <code>glpat-…</code>, … (ported from the gitleaks rule set)</td><td>Length/charset per provider</td><td>Suppress <code>sk_test_</code>, <code>AKIAIOSFODNN7EXAMPLE</code>, <code>xxxx</code>/<code>&lt;KEY&gt;</code>/<code>${VAR}</code>/<code>process.env.X</code></td><td><span class="pill p-block">Block</span></td></tr>
+<tr><td>1</td><td>JWT / bearer</td><td><code>eyJ[\w-]+\.eyJ[\w-]+\.[\w-]+</code>; <code>Authorization: Bearer …</code></td><td>Base64url-decode header → has <code>alg</code></td><td>jwt.io's well-known sample token is allowlisted</td><td><span class="pill p-block">Block</span></td></tr>
+<tr><td>1–2</td><td>Generic secret assignment</td><td><code>(api[_-]?key|secret|token|client_secret|passwd|pwd|password)\s*[:=]\s*["']?(VALUE)</code></td><td>VALUE is a literal, ≥ 8 chars, Shannon entropy ≥ 3.0 bits/char</td><td>VALUE is an identifier, type, call or empty → no finding (<code>password: string</code>, <code>form['password']</code>)</td><td><span class="pill p-block">Block</span></td></tr>
+<tr><td>2</td><td>Private keys</td><td><code>-----BEGIN (RSA |EC |DSA |OPENSSH |PGP )?PRIVATE KEY( BLOCK)?-----</code>, PuTTY <code>PuTTY-User-Key-File</code></td><td>Body present (not just the header in docs)</td><td>none</td><td><span class="pill p-block">Block</span></td></tr>
+<tr><td>2</td><td>Labelled password (multilingual)</td><td>password, passwd, pwd, contraseña, mot de passe, Passwort, senha, wachtwoord, пароль, 密码, パスワード, 비밀번호, पासवर्ड, كلمة المرور, + <code>:</code>/<code>=</code>/"is"/"es"/"ist" + value</td><td>value literal, not a placeholder</td><td>placeholders: <code>****</code>, <code>&lt;password&gt;</code>, "your password", "changeme" in docs context</td><td><span class="pill p-block">Block</span></td></tr>
+<tr><td>2</td><td>Unlabelled password</td><td>8–64 char token, ≥ 3 of {upper, lower, digit, symbol}</td><td>entropy ≥ 3.0; not URL/email/path/UUID/hash/semver/identifier/dictionary word</td><td>needs credential context ("login", "creds", "sign in", a user/email within 40 chars, "user / pass" shape)</td><td><span class="pill p-block">Block</span> with context, <span class="pill p-warn">Warn</span> without</td></tr>
+<tr><td>3</td><td>US SSN</td><td><code>\d{3}-\d{2}-\d{4}</code> or 9 digits</td><td>area ∉ {000, 666, 9xx}, group ≠ 00, serial ≠ 0000</td><td>dashed or labelled (SSN, social security)</td><td><span class="pill p-block">Block</span></td></tr>
+<tr><td>3</td><td>Passport</td><td><code>[A-Z]{1,2}\d{7}</code> (AU), generic 6–9 alnum; MRZ <code>P&lt;[A-Z]{3}…</code></td><td>MRZ check digits (weights 7-3-1)</td><td>"passport", "pasaporte", "पासपोर्ट", "护照" … MRZ needs no label</td><td><span class="pill p-block">Block</span></td></tr>
+<tr><td>3</td><td>Driver licence</td><td>state formats (VIC 8–10 digits, NSW 6–8 alnum, …) + card number</td><td>none</td><td>label required ("licence no", "DL", "driver's license")</td><td><span class="pill p-block">Block</span></td></tr>
+<tr><td>3</td><td>Medicare (AU)</td><td><code>[2-6]\d{9}</code> (+ IRN)</td><td>check digit = Σ(d₁..d₈ × 1,3,7,9,1,3,7,9) mod 10 = d₉</td><td>"Medicare" label raises confidence</td><td><span class="pill p-block">Block</span></td></tr>
+<tr><td>4</td><td>Tax File Number</td><td><code>\d{3}[ -]?\d{3}[ -]?\d{2,3}</code></td><td>Σ(dᵢ × 1,4,3,7,5,8,6,9,10) mod 11 = 0 (python-stdnum)</td><td>label (TFN, tax file) <i>or</i> 3-3-3 grouping; "Order #/Invoice/Ref" downgrades to Warn</td><td><span class="pill p-block">Block</span></td></tr>
+<tr><td>5</td><td>Payment card</td><td>13–19 digits with separators</td><td>Luhn + IIN (Visa 4, MC 51–55/2221–2720, Amex 34/37, Discover, JCB, UnionPay)</td><td>allowlist of Stripe/Adyen/Braintree test PANs (4242…, 4111…, 5555 5555 5555 4444, 3782 822463 10005, …); masked PANs pass</td><td><span class="pill p-block">Block</span></td></tr>
+<tr><td>5</td><td>Bank account</td><td>BSB <code>\d{3}-?\d{3}</code> + 6–10 digits; IBAN</td><td>IBAN mod 97; BSB first digits match a known bank prefix table</td><td>AU accounts need a label (BSB, acc, account no.)</td><td><span class="pill p-block">Block</span></td></tr>
+<tr><td>6</td><td>ABN next to a name</td><td><code>\d{2} ?\d{3} ?\d{3} ?\d{3}</code></td><td>mod 89 (first digit −1; weights 10,1,3,5,…,19)</td><td>person-name heuristic within the same line/record; company-only ABN passes (ABNs are public)</td><td><span class="pill p-block">Block</span></td></tr>
+<tr><td>6</td><td>PAN next to a name</td><td><code>[A-Z]{3}[ABCFGHLJPT][A-Z]\d{4}[A-Z]</code></td><td>4th char = holder type; for <code>P</code>, 5th char should equal the surname initial of the nearby name (strong signal)</td><td>name within the record</td><td><span class="pill p-block">Block</span></td></tr>
+<tr><td>6</td><td>Aadhaar</td><td><code>[2-9]\d{3}[ -]?\d{4}[ -]?\d{4}</code></td><td>Verhoeff</td><td>label (Aadhaar, आधार, UID) <i>or</i> 4-4-4 grouping; masked <code>XXXX XXXX 1234</code> passes</td><td><span class="pill p-block">Block</span></td></tr>
+<tr><td>7</td><td>Connection strings</td><td><code>(postgres(ql)?|mysql|mariadb|mongodb(\+srv)?|redis|rediss|amqp|mssql|sqlserver)://user:pass@host</code>; JDBC <code>;password=</code>; ADO <code>Server=…;Password=…</code>; <code>DATABASE_URL=</code></td><td>password part is a literal, not <code>${…}</code>/<code>&lt;password&gt;</code>/<code>****</code></td><td>localhost with password "postgres"/"password": still Block (credential pattern), reason says so</td><td><span class="pill p-block">Block</span></td></tr>
+</table></div>
+
+<h3>Validator code (all O(n), each &lt; 1 µs)</h3>
+<pre><code>export const luhn = (d: number[]) =&gt;
+  d.reduceRight((s, x, i, a) =&gt; { const k = (a.length - 1 - i) % 2 ? x * 2 : x; return s + (k &gt; 9 ? k - 9 : k); }, 0) % 10 === 0;
+
+const TFN_W = [1, 4, 3, 7, 5, 8, 6, 9, 10];                       // python-stdnum au/tfn.py
+export const tfn = (d: number[]) =&gt; (d.length === 8 || d.length === 9)
+  &amp;&amp; d.reduce((s, x, i) =&gt; s + x * TFN_W[i], 0) % 11 === 0;      // 123 456 782 → 253 = 11×23 ✓
+
+const ABN_W = [10, 1, 3, 5, 7, 9, 11, 13, 15, 17, 19];
+export const abn = (d: number[]) =&gt; d.length === 11 &amp;&amp; d[0] &gt; 0
+  &amp;&amp; d.reduce((s, x, i) =&gt; s + (i === 0 ? x - 1 : x) * ABN_W[i], 0) % 89 === 0;   // 51 824 753 556 ✓
+
+const MED_W = [1, 3, 7, 9, 1, 3, 7, 9];
+export const medicare = (d: number[]) =&gt; d.length &gt;= 10 &amp;&amp; d[0] &gt;= 2 &amp;&amp; d[0] &lt;= 6
+  &amp;&amp; d.slice(0, 8).reduce((s, x, i) =&gt; s + x * MED_W[i], 0) % 10 === d[8];
+
+const VD = [[0,1,2,3,4,5,6,7,8,9],[1,2,3,4,0,6,7,8,9,5],[2,3,4,0,1,7,8,9,5,6],[3,4,0,1,2,8,9,5,6,7],[4,0,1,2,3,9,5,6,7,8],
+            [5,9,8,7,6,0,4,3,2,1],[6,5,9,8,7,1,0,4,3,2],[7,6,5,9,8,2,1,0,4,3],[8,7,6,5,9,3,2,1,0,4],[9,8,7,6,5,4,3,2,1,0]];
+const VP = [[0,1,2,3,4,5,6,7,8,9],[1,5,7,6,2,8,3,0,9,4],[5,8,0,3,7,9,6,1,4,2],[8,9,1,6,0,4,3,5,2,7],
+            [9,4,5,3,1,2,6,8,7,0],[4,2,8,6,5,7,3,9,0,1],[2,7,9,3,8,0,6,4,1,5],[7,0,4,6,9,1,3,2,5,8]];
+export const verhoeff = (d: number[]) =&gt;
+  [...d].reverse().reduce((c, x, i) =&gt; VD[c][VP[i % 8][x]], 0) === 0;   // Aadhaar
+
+export const shannon = (s: string) =&gt; { const f = new Map&lt;string, number&gt;();
+  for (const ch of s) f.set(ch, (f.get(ch) ?? 0) + 1);
+  return [...f.values()].reduce((h, c) =&gt; h - (c / s.length) * Math.log2(c / s.length), 0); };</code></pre>
+<div class="callout warn"><b>Verify before shipping.</b> The TFN weights match python-stdnum (8-digit TFNs use the first eight weights). Some
+references give a different 8-digit scheme, so confirm against ATO-published samples. The Medicare weights (1,3,7,9 repeating, mod 10) are
+documented by several Australian health-software sources. All test values in the corpus are <b>generated</b> to pass checksums. None is a
+real person's number.</div>
+
+<h3>Why checksums alone are not enough</h3>
+<p>A random digit string passes Luhn or Verhoeff about 1 time in 10, TFN about 1 in 11, ABN about 1 in 89. A CSV of 500 order IDs would produce about 45
+"valid TFNs". So weak checksums always need a second signal (label, expected grouping or column header). Strong signals stand alone: provider key
+prefixes, private-key armour, a connection string with a password, an MRZ line with valid check digits, or a Luhn-valid PAN with a real IIN.</p>
+
+<!-- ============================================================ -->
+<h2 id="context">9. Context categories 8–10: decision and rationale</h2>
+<p>These cannot be decided from a single token. The rule is <b>co-occurrence in the same record</b>: an identity marker plus sensitive
+content in the same CSV row, JSON object, table row or paragraph (window ≈ 300 chars, stopping at blank lines).</p>
+<div class="table-wrap"><table>
+<tr><th>Category</th><th>Identity marker (A)</th><th>Sensitive content (B)</th><th>Block when</th><th>Pass examples</th></tr>
+<tr><td>8, Customer financial record</td><td>labelled name ("Customer:", "Name:", "Mr/Ms X"), customer ID, email, phone, account no., or CSV header with a name/email column</td><td>balance, credit limit, loan amount, arrears, salary, transaction rows with amounts, or CSV header with balance/amount columns</td><td>A and B in the same record → <span class="pill p-block">Block</span>; A and B nearby but not structured → <span class="pill p-warn">Warn</span></td><td>"How does compound interest work?"; "Explain the RBA rate decision"; "What is [public figure]'s net worth?"</td></tr>
+<tr><td>9, Medical record</td><td>"Patient:"/"Name:", DOB, Medicare no., MRN/URN, address, phone</td><td>diagnosed/diagnosis, prescribed, dosage (<code>\d+ ?mg</code>), ICD-10 code (<code>[A-TV-Z]\d{2}(\.\d{1,2})?</code>), pathology, discharge summary, condition lexicon</td><td>A and B in the same record → <span class="pill p-block">Block</span></td><td>"What are the symptoms of type 2 diabetes?"; "Did [public figure] have cancer?" (name but no record identifier)</td></tr>
+<tr><td>10, Trade secrets / proprietary code</td><td>n/a (ownership)</td><td>"CONFIDENTIAL", "INTERNAL USE ONLY", "Proprietary", "Do not distribute", "Copyright (c) &lt;OrgName&gt;"; org fingerprints (internal domains, codenames, package namespaces, repo names); optional hashed-shingle fingerprints of the org's codebase</td><td>marker or fingerprint → <span class="pill p-block">Block</span>; large code paste with no markers → <span class="pill p-warn">Warn</span> (policy can make this Block)</td><td>Tutorial code, open-source snippets, "fix this Python error"</td></tr>
+</table></div>
+<div class="callout"><b>Why this handling (the answer to "explain why").</b> Most of the risk in 8–9 comes from the
+<i>link</i> between a person and their data. A disease name or a balance on its own is not personal information. So we require the link and
+let general questions and public-figure questions through. For 10, the content alone can't tell you who owns a piece of code. Hard-blocking all code
+would block a core legitimate use of AI assistants and push engineers to turn the guard off. So we block on explicit markers and on org
+fingerprints the security team configures, and warn on everything else. The optional model (§12) improves recall on unstructured text, for
+example a narrative clinical note with no "Patient:" label.</div>
+
+<!-- ============================================================ -->
+<h2 id="fp">10. Decision tiers and false-positive strategy</h2>
+<div class="table-wrap"><table>
+<tr><th>Tier</th><th>When</th><th>User experience</th></tr>
+<tr><td><span class="pill p-block">Block</span></td><td>Strong signal, or validator + context, or 8–9 structured co-occurrence, or 10 markers</td><td>Cannot send. No override. Redact / Remove chip / edit, then rescan.</td></tr>
+<tr><td><span class="pill p-warn">Warn</span></td><td>Validator without context, unlabelled password-like strings, unstructured 8–9, generic large code</td><td>Panel explains. "Send anyway" needs a short reason; a one-shot token for that exact text. Event logged (no raw value).</td></tr>
+<tr><td><span class="pill p-allow">Allow</span></td><td>Everything else</td><td>Nothing visible.</td></tr>
+</table></div>
+<ul>
+<li><b>Suppressors downgrade; they never erase strong signals.</b> Typing "Order #" in front of a real TFN downgrades Block to Warn. It cannot make a Luhn-valid card or an AWS key pass.</li>
+<li><b>Negative evidence list:</b> order/invoice/tracking/ref/booking/SKU labels, dates, timestamps, versions, IPs, UUIDs, git SHAs, phone formats, values inside URLs,
+repeated or sequential digits, documentation sample values, masked values, code references (types, variables, env lookups).</li>
+<li><b>CSV columns:</b> a header like <code>order_id</code> suppresses the whole column. <code>tfn</code>, <code>card_number</code> or <code>patient_name</code> escalates the whole column.</li>
+<li><b>Admin allowlist</b> (managed storage): the org's own ABN, internal test card ranges, sandbox key prefixes. Users can't edit it.</li>
+<li><b>Shadow mode:</b> new detectors log "would have blocked" counts before they enforce. This is the same idea as champion/challenger rollout for credit models.</li>
+<li><b>Targets:</b> zero false positives on the brief's look-alike set; &lt; 0.5% of a benign prompt corpus blocked; 100% recall on the positive corpus for categories 1–7.</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2 id="ux">11. Block UX and fixing the prompt</h2>
+<div class="grid2">
+<div class="mock" aria-label="Block panel mock-up">
+<div class="mock-h"><span>⛔ Not sent: 2 high-risk items found</span><span>✕</span></div>
+<div class="mock-b">
+<div class="mock-item"><b>Tax File Number</b><small>Message, line 14, <code>123 ••• •82</code>, checksum valid, labelled "TFN"</small></div>
+<div class="mock-item"><b>AWS access key</b><small>Pasted text #1, <code>AKIA••••••••••••7Q2X</code>, AWS key format</small></div>
+<div class="mock-act"><span class="btn pri">Redact all</span><span class="btn">Highlight</span><span class="btn">Remove pasted text #1</span><span class="btn">Not sensitive?</span></div>
+<p style="margin:10px 0 0;color:var(--muted);font-size:.85rem">Why: these can identify you or give access to systems. Edit the prompt or redact them; it is rechecked automatically.</p>
+</div></div>
+<div>
+<ul>
+<li><b>Anchored</b> above the composer, inside a Shadow root; keyboard accessible; <code>role="alertdialog"</code>, focus returns to the composer.</li>
+<li><b>Masked values only.</b> The raw secret is never shown again or logged.</li>
+<li><b>Redact</b> replaces each span with <code>[TFN]</code>, <code>[AWS_KEY]</code> … using <code>document.execCommand("insertText")</code> on a selection
+of the span, so ProseMirror/Quill update their own state. The user can still ask the question.</li>
+<li><b>Highlight</b> selects and scrolls to the span.</li>
+<li><b>Remove pasted text</b> clicks the site's own chip remove button.</li>
+<li><b>Live re-check</b>: input events (debounced 150 ms) rescan; the panel turns green and closes when clean. The next Send works normally.</li>
+<li><b>"Not sensitive?"</b> files a report (detector, confidence, hash). It does <i>not</i> unblock.</li>
+</ul>
+</div>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="ml">12. Optional ML layer and the 1-second guarantee</h2>
+<p>The rules make the decision. The model only adds recall for 8–10 on unstructured text, for example a narrative note with no labels. The guarantee
+comes from the design, not from how fast the model is:</p>
+<figure>
+<svg viewBox="0 0 920 250" role="img" aria-label="Latency timeline">
+<defs><marker id="a5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="ah" d="M0,0 L10,5 L0,10 z"/></marker></defs>
+<line class="ln" x1="300" y1="200" x2="900" y2="200" marker-end="url(#a5)"/>
+<text x="300" y="222" text-anchor="middle" class="t-s">Send (0 ms)</text>
+<text x="590" y="222" text-anchor="middle" class="t-s">500 ms</text>
+<text x="706" y="236" text-anchor="middle" class="t-s">700 ms deadline</text>
+<text x="880" y="222" text-anchor="middle" class="t-s">1000 ms</text>
+<line class="life" x1="706" y1="40" x2="706" y2="200"/><line x1="880" y1="40" x2="880" y2="200" stroke="var(--block)" stroke-width="1.6"/>
+<text x="876" y="36" text-anchor="end" class="t-s" style="fill:var(--block)">hard limit</text>
+<!-- pre-send -->
+<rect class="mlb" x="20" y="40" width="250" height="52" rx="6"/><text x="145" y="61" text-anchor="middle" class="t-s">before Send: on paste / typing pause</text><text x="145" y="80" text-anchor="middle" class="t-s">→ model → cache by hash(text)</text>
+<!-- rules -->
+<rect class="acc" x="300" y="60" width="14" height="30"/><text x="322" y="80" class="t-s">rules 2–20 ms (always)</text>
+<!-- cache hit -->
+<rect class="alw" x="300" y="105" width="6" height="26"/><text x="314" y="123" class="t-s">cache hit: verdict = rules ∪ cached model escalations (&lt; 1 ms)</text>
+<!-- cache miss -->
+<rect class="mlb" x="314" y="146" width="392" height="26" rx="4"/><text x="322" y="164" class="t-s">cache miss + cues: hold send, model scores suspicious chunks</text>
+<path class="ln" d="M706,159 L800,159" marker-end="url(#a5)"/><text x="714" y="150" class="t-s">timeout → rules decide</text>
+<text x="20" y="123" class="t-s">most prompts:</text><text x="20" y="164" class="t-s">rare path:</text>
+</svg>
+<figcaption>Fig. 5. The rules path is always within budget. The model path is either already cached or capped by the deadline. The model can only
+<i>escalate</i> (Allow→Warn, Warn→Block). It never relaxes a rule decision, so a slow or broken model cannot make anything less safe.</figcaption>
+</figure>
+<ol>
+<li><b>Pre-compute:</b> score on paste and after a 300 ms typing pause; cache by <code>hash(text)</code>.</li>
+<li><b>Gate:</b> skip the model unless the rules saw 8–10 cues (medical/financial lexicon, identity markers, code shape). Most prompts never touch it.</li>
+<li><b>Chunk:</b> only score the records or sentences containing cues; cap at 8 × 256 tokens.</li>
+<li><b>Deadline:</b> on a cache miss with cues, hold the send for at most 700 ms, then let the rules decide; if the result is Allow, re-dispatch once with the one-shot token.</li>
+<li><b>Warm:</b> load the model in an offscreen document (a hidden extension page) when the tab opens, so loading never happens on the Send path.</li>
+</ol>
+<div class="table-wrap"><table>
+<tr><th>Model option</th><th>Size (int8)</th><th>Est. per 256-token chunk, laptop CPU*</th><th>Verdict</th></tr>
+<tr><td><b>all-MiniLM-L6-v2 embeddings + calibrated logistic regression</b></td><td>≈ 23 MB</td><td>≈ 10–40 ms</td><td><span class="pill p-ml">Recommended</span></td></tr>
+<tr><td>paraphrase-multilingual-MiniLM-L12-v2 + same head</td><td>≈ 120 MB</td><td>≈ 40–100 ms</td><td>If non-English prompts matter</td></tr>
+<tr><td>DistilBERT NER (person/org)</td><td>≈ 65–135 MB</td><td>≈ 30–80 ms</td><td>Optional "named person present" signal</td></tr>
+<tr><td>GLiNER (zero-shot entities)</td><td>≈ 150 MB+</td><td>≈ 150–400 ms</td><td>Good demo, too slow for a guarantee</td></tr>
+<tr><td>Chrome built-in Gemini Nano</td><td>no download</td><td>seconds; needs capable hardware</td><td>Not guaranteed</td></tr>
+<tr><td>Cloud LLM</td><td>n/a</td><td>0.5–3 s + network</td><td>Rejected: leaks the data</td></tr>
+</table></div>
+<p class="sub">*Estimates; to be benchmarked on a modest laptop and reported as p50/p95/p99 in the README.</p>
+<p><b>Training the head:</b> a few thousand synthetic, labelled examples generated offline with an LLM. Classes: identifiable medical record vs
+general health question; customer financial record vs general finance question; proprietary/internal code vs tutorial code; other.
+Platt calibration, per-class thresholds chosen from a cost matrix, evaluated on a held-out set of hand-written cases (including the brief's
+look-alikes). This is the same embed → classify → calibrate → threshold workflow as credit-risk scoring.</p>
+
+<!-- ============================================================ -->
+<h2 id="perf">13. Performance budget</h2>
+<div class="table-wrap"><table>
+<tr><th>Step</th><th>Budget (p95)</th><th>How</th></tr>
+<tr><td>Read composer + chip texts</td><td>&lt; 2 ms</td><td><code>innerText</code> of one node; chip texts already in memory</td></tr>
+<tr><td>Normalise 100 KB</td><td>&lt; 5 ms</td><td>single pass, array of code points + offset Int32Array</td></tr>
+<tr><td>All detectors 100 KB</td><td>&lt; 15 ms</td><td>~40 precompiled sticky/global regexes, bounded quantifiers, validators only on candidates</td></tr>
+<tr><td>Panel render</td><td>&lt; 16 ms</td><td>one Shadow root, created lazily, reused</td></tr>
+<tr><td>1 MB paste (worst case)</td><td>&lt; 150 ms</td><td>chunked at 64 KB with 200-char overlap; pre-scanned at paste time so Send hits the cache</td></tr>
+<tr><td>Backstop body scan</td><td>&lt; 20 ms</td><td>cache lookup by hash of the composer text; full scan only on a miss</td></tr>
+</table></div>
+<p>Guardrails: a ReDoS test (adversarial 1 MB strings per regex, each must finish in &lt; 50 ms) and a CI benchmark that fails on a regression of more than 20%.</p>
+
+<!-- ============================================================ -->
+<h2 id="threat">14. Threat model and limits</h2>
+<div class="table-wrap"><table>
+<tr><th>Bypass / failure</th><th>Mitigation</th><th>Residual risk</th></tr>
+<tr><td>Press Send again / double Enter</td><td>Stateless rescan per attempt</td><td>None</td></tr>
+<tr><td>New send path (shortcut, "edit message", retry, regenerate)</td><td>MAIN-world network backstop</td><td>Endpoint list must be maintained</td></tr>
+<tr><td>Site DOM change breaks selectors</td><td>Generic fallbacks + backstop + a startup self-test that logs "adapter degraded"</td><td>UX degrades to a network-level block (less friendly explanation)</td></tr>
+<tr><td>Obfuscation (spaces, unicode digits, zero-width, full-width)</td><td>Normalisation</td><td>Deliberate encoding (base64, ROT13, splitting across messages) is out of scope; say so</td></tr>
+<tr><td>Images / screenshots / PDFs</td><td>Out of scope v1</td><td>OCR (Textract or on-device) as v2</td></tr>
+<tr><td>User disables the extension, uses incognito or another browser</td><td>Enterprise: <code>ExtensionInstallForcelist</code>, incognito policy, block unmanaged AI apps at the proxy</td><td>Organisational control, not the extension's job</td></tr>
+<tr><td>Extension itself leaks data</td><td>No network permission, no raw values stored, telemetry = category + detector + hash only</td><td>None</td></tr>
+</table></div>
+
+<!-- ============================================================ -->
+<h2 id="testing">15. Testing strategy</h2>
+<h3>Layers</h3>
+<ol>
+<li><b>Unit (Vitest, Node):</b> every validator with published samples; every detector with positive and negative cases; normalisation offset round-trip.</li>
+<li><b>Labelled corpus</b> (<code>test/corpus/*.jsonl</code>: <code>{id, text, expect: [{category, tier}]}</code>), with one file per edge case in the brief.
+Reported as a precision/recall table per category in CI.</li>
+<li><b>Benign corpus:</b> a sample of public chat prompts and open-source code to measure the false-positive rate.</li>
+<li><b>Benchmark:</b> 1 KB / 10 KB / 100 KB / 1 MB inputs plus ReDoS strings; p50/p95.</li>
+<li><b>E2E (Playwright + Chromium with <code>--load-extension</code>)</b> against local fixture pages that copy each site's DOM structure (§3):
+Enter, Shift+Enter, IME, click, submit, paste chip, remove chip, Redact, double-send.</li>
+<li><b>Live smoke (manual, Claude in Chrome):</b> a scripted checklist on the real sites using <i>synthetic</i> values only. If the guard
+fails, nothing real leaks.</li>
+</ol>
+<h3>Edge-case matrix (from the brief)</h3>
+<div class="table-wrap"><table>
+<tr><th>Case</th><th>Example input (synthetic)</th><th>Expected</th></tr>
+<tr><td>Test card</td><td>"Use 4242 4242 4242 4242 in Stripe test mode"</td><td><span class="pill p-allow">Allow</span></td></tr>
+<tr><td>Real-format card, dashed</td><td>"card 4539-1488-0343-6467" (Luhn-valid, generated)</td><td><span class="pill p-block">Block</span></td></tr>
+<tr><td>Password field in code, no value</td><td><code>&lt;input type="password" name="password"&gt;</code>; <code>password: string;</code></td><td><span class="pill p-allow">Allow</span></td></tr>
+<tr><td>Password in JSON</td><td><code>{"user":"jo","password":"Wq8#zL2!vR"}</code></td><td><span class="pill p-block">Block</span></td></tr>
+<tr><td>Unlabelled password</td><td>"login is jo@acme.io / Wq8#zL2!vR"</td><td><span class="pill p-block">Block</span></td></tr>
+<tr><td>Order number</td><td>"Order #123456782 hasn't arrived"</td><td><span class="pill p-allow">Allow</span> / <span class="pill p-warn">Warn</span> (TFN-valid digits, downgraded)</td></tr>
+<tr><td>TFN, Hindi label and digits</td><td>"मेरा टैक्स फ़ाइल नंबर १२३ ४५६ ७८२ है"</td><td><span class="pill p-block">Block</span></td></tr>
+<tr><td>Aadhaar in CSV</td><td><code>name,aadhaar\nRavi K,&lt;Verhoeff-valid 12 digits&gt;</code></td><td><span class="pill p-block">Block</span></td></tr>
+<tr><td>Buried secret</td><td>40 KB of prose with <code>AKIA…</code> at 95%</td><td><span class="pill p-block">Block</span>, line shown</td></tr>
+<tr><td>Chip</td><td>12 KB paste containing <code>postgres://app:S3cr3t@db.internal/prod</code></td><td><span class="pill p-block">Block</span>; remove chip → <span class="pill p-allow">Allow</span></td></tr>
+<tr><td>Public figure</td><td>"What illness did [public figure] have?"</td><td><span class="pill p-allow">Allow</span></td></tr>
+<tr><td>General medical / finance</td><td>"Symptoms of diabetes?" / "How is a credit score calculated?"</td><td><span class="pill p-allow">Allow</span></td></tr>
+<tr><td>Medical record</td><td>"Patient: Jane Citizen, DOB 03/04/1970, dx E11.9, metformin 500 mg"</td><td><span class="pill p-block">Block</span></td></tr>
+<tr><td>Customer financial record</td><td>CSV <code>customer_name,email,balance,arrears</code> + rows</td><td><span class="pill p-block">Block</span></td></tr>
+<tr><td>Proprietary code</td><td>file header "Copyright (c) Acme Pty Ltd. CONFIDENTIAL"</td><td><span class="pill p-block">Block</span></td></tr>
+<tr><td>ABN of a company</td><td>"Aionix's ABN is &lt;valid ABN&gt;"</td><td><span class="pill p-allow">Allow</span> (no person name)</td></tr>
+<tr><td>ABN next to a person</td><td>"Contractor: Priya Shah, ABN &lt;valid ABN&gt;"</td><td><span class="pill p-block">Block</span></td></tr>
+<tr><td>Mixed</td><td>Long friendly email draft + one <code>sk-ant-api03-…</code></td><td><span class="pill p-block">Block</span> (one finding)</td></tr>
+<tr><td>Re-send</td><td>Press Enter 5× on a blocked prompt</td><td>Blocked 5×; nothing sent</td></tr>
+</table></div>
+
+<!-- ============================================================ -->
+<h2 id="repo">16. Repository layout and milestones</h2>
+<pre><code>promptguard/
+├─ manifest.json, policy.schema.json, package.json, tsconfig.json, build.mjs (esbuild)
+├─ src/
+│  ├─ engine/   normalise.ts, scan.ts, tiers.ts, validators.ts, context.ts, suppress.ts
+│  │            detectors/ {keys,secrets,govid,tfn,cards,bank,abn_pan_aadhaar,connstr,financial,medical,proprietary}.ts
+│  ├─ content/  index.ts, interceptor.ts, chips.ts, panel/ (shadow UI), redact.ts
+│  ├─ adapters/ claude.ts, chatgpt.ts, gemini.ts, generic.ts
+│  ├─ backstop/ main-world.ts (fetch + XHR wrapper)
+│  ├─ ml/       offscreen.html, worker.ts, model/ (optional)
+│  └─ sw.ts     (policy load, offscreen lifecycle)
+├─ test/ unit/, corpus/*.jsonl, benign/, bench/, e2e/ (Playwright + fixtures/)
+└─ README.md  (design decisions, results table, limits, demo GIF)</code></pre>
+<div class="table-wrap"><table>
+<tr><th>Milestone</th><th>Output</th><th>Exit criteria</th></tr>
+<tr><td>M1 Engine + corpus</td><td>pure TS engine, validators, detectors 1–10 (rules), corpus</td><td>all brief cases green; 100 KB p95 &lt; 20 ms</td></tr>
+<tr><td>M2 Extension (claude.ai, ChatGPT)</td><td>interceptor, adapters, chips, panel, Redact, backstop</td><td>E2E green on fixtures; live smoke checklist passes</td></tr>
+<tr><td>M3 Gemini + polish</td><td>Gemini adapter, README, demo GIF, results table</td><td>reviewer can load the unpacked extension and reproduce the results in 5 min</td></tr>
+<tr><td>M4 Optional ML</td><td>offscreen MiniLM + head, cache, deadline</td><td>recall gain on the 8–10 hold-out set, p95 unchanged</td></tr>
+</table></div>
+
+<!-- ============================================================ -->
+<h2 id="open">17. Open questions and risks</h2>
+<ul>
+<li>Deadline and submission format (repo, zip, video)? Ask Roee.</li>
+<li>Confirm in the Network panel whether ChatGPT uploads pasted text at paste time, and which endpoints carry the prompt and attachments on each site (backstop list).</li>
+<li>Is a Warn tier acceptable to Aionix for 8–10, or do they expect a hard block everywhere? (Design supports both via policy.)</li>
+<li>Risk: site UI changes during review. Mitigation: adapters + fallbacks + backstop + a self-test banner.</li>
+<li>Risk: the unlabelled-password detector is the noisiest. Mitigation: context requirement, Warn without context, tuned on the corpus.</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2 id="defend">18. How to present and defend it (10-minute walkthrough)</h2>
+<ol>
+<li><b>Problem framing (1 min):</b> this is a cost-sensitive classifier. A miss is a breach; a false block costs trust, and lost trust means the guard gets uninstalled.</li>
+<li><b>Key insight (2 min):</b> decide <i>synchronously inside the original event</i>, so clean prompts are never held or replayed. Show Fig. 2.</li>
+<li><b>Detection (2 min):</b> normalise → candidates → validators → context → suppressors → tiers. Show the TFN worked example and the "1 in 11" argument for context.</li>
+<li><b>Hard parts (2 min):</b> chips (text not in DOM, live findings from §3), the bypass backstop, categories 8–10 handled as co-occurrence.</li>
+<li><b>Evidence (2 min):</b> corpus results table, false-positive rate on the benign set, latency p95, demo GIF.</li>
+<li><b>What's next (1 min):</b> optional ML layer with the deadline guarantee; OCR; telemetry into the Aionix AI Security / Visibility modules.</li>
+</ol>
+<div class="callout ok"><b>Link to my experience (be honest):</b> threshold setting with a cost matrix, calibration, out-of-time validation and champion/challenger
+rollout come straight from credit-risk and churn modelling at ADF and Policybazaar. Handling PAN/Aadhaar-style KYC data is familiar from Indian fintech and
+insurance. The Chrome-extension and front-end mechanics are new to me. Say so, and point to the tests and the live-site debugging as proof the design
+is grounded.</div>
+
+<p class="sub" style="margin-top:40px">Sources: Aionix website (product modules); LinkedIn JD 4483247964; python-stdnum <code>au/tfn.py</code> (TFN weights);
+Wikipedia "Australian Business Number" (ABN worked example); Australian health-software references for the Medicare check digit; live DOM inspection of
+claude.ai, chatgpt.com and gemini.google.com via Claude in Chrome on 28 Oct 2026.</p>
+</main>
+</div>
+<script>
+(function(){
+  /* theme toggle */
+  var root=document.documentElement, tb=document.getElementById('themeBtn');
+  function isDark(){var t=root.getAttribute('data-theme'); return t? t==='dark' : matchMedia('(prefers-color-scheme: dark)').matches;}
+  function label(){tb.textContent=isDark()?'Light mode':'Dark mode';}
+  try{var s=localStorage.getItem('pg-theme'); if(s) root.setAttribute('data-theme',s);}catch(e){}
+  label();
+  tb.addEventListener('click',function(){var n=isDark()?'light':'dark'; root.setAttribute('data-theme',n); try{localStorage.setItem('pg-theme',n);}catch(e){} label();});
+
+  /* contents: mark the section being read */
+  var links={}; document.querySelectorAll('nav.toc a').forEach(function(a){links[a.getAttribute('href').slice(1)]=a;});
+  if('IntersectionObserver' in window){
+    var io=new IntersectionObserver(function(es){es.forEach(function(e){ if(e.isIntersecting){ Object.values(links).forEach(function(a){a.removeAttribute('aria-current');}); var a=links[e.target.id]; if(a) a.setAttribute('aria-current','true'); }});},{rootMargin:'0px 0px -75% 0px'});
+    document.querySelectorAll('.main h2[id]').forEach(function(h){io.observe(h);});
+  }
+
+  /* ---------------- engine (cut-down) ---------------- */
+  var ZEROS=[0x30,0x660,0x6F0,0x7C0,0x966,0x9E6,0xA66,0xAE6,0xB66,0xBE6,0xC66,0xCE6,0xD66,0xDE6,0xE50,0xED0,0xF20,0x1040,0x17E0,0x1810,0xFF10];
+  function normalise(s){ // one UTF-16 unit in, one out: offsets stay valid for highlighting and redaction
+    var out=new Array(s.length);
+    for(var i=0;i<s.length;i++){
+      var c=s.charCodeAt(i), ch=s[i], m=null;
+      for(var z=0;z<ZEROS.length;z++){ if(c>=ZEROS[z]&&c<=ZEROS[z]+9){ m=String(c-ZEROS[z]); break; } }
+      if(m===null){
+        if(/[​-‍⁠﻿­    ]/.test(ch)) m=' ';
+        else if(/[‐-―−]/.test(ch)) m='-';
+        else m=ch;
+      }
+      out[i]=m;
+    }
+    return out.join('');
+  }
+  function digits(s){return s.replace(/\D/g,'').split('').map(Number);}
+  function luhn(d){var s=0;for(var i=d.length-1,k=0;i>=0;i--,k++){var x=d[i];if(k%2){x*=2;if(x>9)x-=9;}s+=x;}return s%10===0;}
+  var TFN_W=[1,4,3,7,5,8,6,9,10]; function tfn(d){if(d.length!==8&&d.length!==9)return false;var s=0;for(var i=0;i<d.length;i++)s+=d[i]*TFN_W[i];return s%11===0;}
+  var ABN_W=[10,1,3,5,7,9,11,13,15,17,19]; function abn(d){if(d.length!==11||d[0]===0)return false;var s=0;for(var i=0;i<11;i++)s+=(i?d[i]:d[i]-1)*ABN_W[i];return s%89===0;}
+  var MED_W=[1,3,7,9,1,3,7,9]; function medicare(d){if(d.length<10||d[0]<2||d[0]>6)return false;var s=0;for(var i=0;i<8;i++)s+=d[i]*MED_W[i];return s%10===d[8];}
+  var VD=[[0,1,2,3,4,5,6,7,8,9],[1,2,3,4,0,6,7,8,9,5],[2,3,4,0,1,7,8,9,5,6],[3,4,0,1,2,8,9,5,6,7],[4,0,1,2,3,9,5,6,7,8],[5,9,8,7,6,0,4,3,2,1],[6,5,9,8,7,1,0,4,3,2],[7,6,5,9,8,2,1,0,4,3],[8,7,6,5,9,3,2,1,0,4],[9,8,7,6,5,4,3,2,1,0]];
+  var VP=[[0,1,2,3,4,5,6,7,8,9],[1,5,7,6,2,8,3,0,9,4],[5,8,0,3,7,9,6,1,4,2],[8,9,1,6,0,4,3,5,2,7],[9,4,5,3,1,2,6,8,7,0],[4,2,8,6,5,7,3,9,0,1],[2,7,9,3,8,0,6,4,1,5],[7,0,4,6,9,1,3,2,5,8]];
+  function verhoeff(d){var c=0,r=d.slice().reverse();for(var i=0;i<r.length;i++)c=VD[c][VP[i%8][r[i]]];return c===0;}
+  function entropy(s){var f={},h=0;for(var i=0;i<s.length;i++)f[s[i]]=(f[s[i]]||0)+1;for(var k in f){var p=f[k]/s.length;h-=p*Math.log2(p);}return h;}
+  function before(n,i,len){return n.slice(Math.max(0,i-len),i);}
+  function lineAround(n,i,j){var a=n.lastIndexOf('\n',i-1)+1,b=n.indexOf('\n',j);return n.slice(a,b<0?n.length:b);}
+  var PERSON=/\b(?:Mr|Ms|Mrs|Dr)\.?\s+[A-Z][a-z]+|\b[A-Z][a-z]+\s[A-Z][a-z]+\b/;
+  var COMPANY=/\b(?:Pty|Ltd|Limited|Inc|Group|Holdings|Corp|Corporation|Bank)\b/;
+  var TEST_CARDS={'4242424242424242':1,'4111111111111111':1,'5555555555554444':1,'5105105105105100':1,'378282246310005':1,'371449635398431':1,'6011111111111117':1,'4000056655665556':1,'4012888888881881':1};
+  var PW_LABEL='password|passwd|pwd|passcode|contraseña|mot de passe|passwort|senha|пароль|密码|パスワード|비밀번호|पासवर्ड';
+
+  function scan(src){
+    var n=normalise(src), F=[];
+    function add(re,fn){var m;re.lastIndex=0;while((m=re.exec(n))){var r=fn(m);if(r){(Array.isArray(r)?r:[r]).forEach(function(x){F.push(x);});}if(m[0].length===0)re.lastIndex++;}}
+    function f(tier,start,end,what,why,label,prio){return {tier:tier,start:start,end:end,what:what,why:why,label:label,prio:prio};}
+    var p=0;
+    add(/-----BEGIN (?:RSA |EC |DSA |OPENSSH |PGP )?PRIVATE KEY(?: BLOCK)?-----/g,function(m){return f('block',m.index,m.index+m[0].length,'Private key','PEM private-key header','PRIVATE_KEY',1);});
+    add(/\bsk-ant-[A-Za-z0-9]{3,8}-[A-Za-z0-9_-]{20,}/g,function(m){return f('block',m.index,m.index+m[0].length,'Anthropic API key','Matches the sk-ant- key format','API_KEY',2);});
+    add(/\bsk-(?:proj-|svcacct-)?[A-Za-z0-9_-]{24,}/g,function(m){return f('block',m.index,m.index+m[0].length,'OpenAI API key','Matches the sk- key format','API_KEY',3);});
+    add(/\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/g,function(m){ if(m[0]==='AKIAIOSFODNN7EXAMPLE') return f('allow',m.index,m.index+m[0].length,'AWS example key','The documented AWS sample key, not a real one','',4); return f('block',m.index,m.index+m[0].length,'AWS access key','AKIA/ASIA prefix and length','API_KEY',4);});
+    add(/\b(?:gh[pousr]_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{22,})/g,function(m){return f('block',m.index,m.index+m[0].length,'GitHub token','GitHub token prefix','API_KEY',5);});
+    add(/\b[rs]k_live_[A-Za-z0-9]{16,}/g,function(m){return f('block',m.index,m.index+m[0].length,'Stripe live key','Live-mode key prefix','API_KEY',6);});
+    add(/\b[sp]k_test_[A-Za-z0-9]{16,}/g,function(m){return f('allow',m.index,m.index+m[0].length,'Stripe test key','Test-mode keys cannot move money','',6);});
+    add(/\beyJ[\w-]{10,}\.eyJ[\w-]{10,}\.[\w-]{10,}/g,function(m){return f('block',m.index,m.index+m[0].length,'Access token (JWT)','Three base64url parts starting with eyJ','TOKEN',7);});
+    add(/\b(?:postgres(?:ql)?|mysql|mariadb|mongodb(?:\+srv)?|rediss?|amqp|mssql):\/\/[^\s:@\/'"]+:([^\s@\/'"]+)@[^\s'"]+/gi,function(m){
+      if(/^(<[^>]*>|\$\{?\w+\}?|\*+|x+|password|pass)$/i.test(m[1])) return f('allow',m.index,m.index+m[0].length,'Connection string','Password is a placeholder','',8);
+      return f('block',m.index,m.index+m[0].length,'Database connection string','Contains a username and a literal password','DB_CONNECTION',8);});
+    add(/\b(api[_-]?key|secret|token|client[_-]?secret|access[_-]?key)\s*["']?\s*[:=]\s*["']([A-Za-z0-9_\-\/+=.]{16,})["']/gi,function(m){
+      if(entropy(m[2])<3.5) return null; var s=m.index+m[0].lastIndexOf(m[2]); return f('block',s,s+m[2].length,'Secret value','High-entropy literal assigned to "'+m[1]+'"','SECRET',9);});
+    add(/\b\d(?:[ -]?\d){12,18}\b/g,function(m){var d=digits(m[0]),k=d.join('');
+      if(TEST_CARDS[k]) return f('allow',m.index,m.index+m[0].length,'Test card number','A published payment test card','',10);
+      if(!luhn(d)||!/^(4|5[1-5]|2[2-7]|3[47]|6011|65|35)/.test(k)) return null;
+      return f('block',m.index,m.index+m[0].length,'Payment card number','Passes the Luhn check and has a real card prefix','CARD',10);});
+    add(/\b(?!000|666|9\d\d)\d{3}-(?!00)\d{2}-(?!0000)\d{4}\b/g,function(m){return f('block',m.index,m.index+m[0].length,'US Social Security number','Valid SSN area, group and serial','SSN',11);});
+    add(/\b\d{2} ?\d{3} ?\d{3} ?\d{3}\b/g,function(m){var d=digits(m[0]); if(!abn(d)) return null; var line=lineAround(n,m.index,m.index+m[0].length), who=line.match(PERSON);
+      if(who&&!COMPANY.test(line)) return f('block',m.index,m.index+m[0].length,'ABN next to a name','Passes the ABN check (mod 89) beside "'+who[0]+'"','ABN',12);
+      return f('allow',m.index,m.index+m[0].length,'ABN','Valid ABN with no person named nearby; ABNs are public','',12);});
+    add(/\b[2-9]\d{3}[ -]?\d{4}[ -]?\d{4}\b/g,function(m){var d=digits(m[0]); if(!verhoeff(d)) return null;
+      var lab=/(aadhaar|aadhar|आधार|\buid\b)/i.test(before(n,m.index,80)), grp=/^\d{4}[ -]\d{4}[ -]\d{4}$/.test(m[0]);
+      return f(lab||grp?'block':'warn',m.index,m.index+m[0].length,'Aadhaar number','Passes the Verhoeff check'+(lab?', labelled Aadhaar':grp?', written in Aadhaar grouping':''),'AADHAAR',13);});
+    add(/\b[2-6]\d{3} ?\d{5} ?\d(?: ?\d)?\b/g,function(m){var d=digits(m[0]); if(!medicare(d)||!/medicare/i.test(before(n,m.index,40))) return null;
+      return f('block',m.index,m.index+m[0].length,'Medicare number','Check digit valid, labelled Medicare','MEDICARE',14);});
+    add(/\b\d{3}[ -]?\d{3}[ -]?\d{2,3}\b/g,function(m){var d=digits(m[0]); if(!tfn(d)) return null; var b=before(n,m.index,40);
+      if(/(order|invoice|ref(?:erence)?|tracking|booking|ticket|case|po)\s*(?:#|no\.?|number|num)?\s*:?\s*#?\s*$/i.test(b)) return f('warn',m.index,m.index+m[0].length,'Possible TFN','Passes the TFN checksum but is labelled as an order or reference number, so it only needs a confirmation','TFN',15);
+      var lab=/(tfn|tax file|टैक्स)/i.test(b), grp=/^\d{3}[ -]\d{3}[ -]\d{3}$/.test(m[0]);
+      return f(lab||grp?'block':'warn',m.index,m.index+m[0].length,'Tax file number','Passes the TFN checksum (mod 11)'+(lab?', labelled as a TFN':grp?', in 3-3-3 grouping':''),'TFN',15);});
+    add(/\b[A-Z]{3}[ABCFGHLJPT][A-Z]\d{4}[A-Z]\b/g,function(m){var line=lineAround(n,m.index,m.index+m[0].length), who=line.match(/\b([A-Z][a-z]+)\s([A-Z][a-z]+)\b/);
+      if(!who) return f('warn',m.index,m.index+m[0].length,'PAN','PAN format with no name nearby','PAN',16);
+      var strong=m[0][3]==='P'&&m[0][4]===who[2][0];
+      return f('block',m.index,m.index+m[0].length,'PAN next to a name','Beside "'+who[0]+'"'+(strong?'; the fifth letter matches the surname initial':''),'PAN',16);});
+    add(new RegExp('('+PW_LABEL+')(["\'\\]]?)\\s*(?:(?:\\bis\\b|\\bes\\b|\\bist\\b|\\best\\b|है|は)\\s*[:=：]?|[:=：])\\s*(["\']?)([^\\s"\',;)]{3,64})','giu'),function(m){
+      var v=m[4], s=m.index+m[0].length-v.length;
+      if(/^(\*+|x+|<[^>]*>|\$\{?\w+\}?|your_?password|changeme|\.{3}|null|none|undefined)$/i.test(v)) return f('allow',s,s+v.length,'Password placeholder','A placeholder, not a value','',17);
+      if(!m[3]&&/^[A-Za-z_$][\w$.]*[\[(]?$/.test(v)&&!/\d/.test(v)) return f('allow',s,s+v.length,'Password field in code','"'+v+'" is a type or variable, not a value','',17);
+      return f('block',s,s+v.length,'Password','Value given after "'+m[1]+'"','PASSWORD',17);});
+    add(/(^|\s)(\S{8,64})(?=\s|$)/g,function(m){var t=m[2].replace(/[.,;)]+$/,''), s=m.index+m[1].length;
+      var cls=(/[a-z]/.test(t)?1:0)+(/[A-Z]/.test(t)?1:0)+(/\d/.test(t)?1:0)+(/[^\w\s]/.test(t)?1:0);
+      if(cls<3||!/[\d\W_]/.test(t)||/:\/\/|^www\.|^\/|@[\w-]+\.|^[0-9a-f-]{16,}$/i.test(t)||entropy(t)<3) return null;
+      var ctx=/(log ?in|sign ?in|creds?|credentials|user ?name|account|wi-?fi)\b[^\n]{0,40}$|[\w.+-]+@[\w-]+\.\w+\s*\/\s*$/i.test(before(n,s,60));
+      if(!ctx&&(cls<4||t.length<10)) return null;
+      return f(ctx?'block':'warn',s,s+t.length,'Password-like string',ctx?'Random-looking string next to login details':'Random-looking string with no label','PASSWORD',18);});
+    // record-level rules (categories 8 to 10), one paragraph at a time
+    var re=/[^]+?(?:\n\s*\n|$)/g, pm;
+    while((pm=re.exec(n))&&pm[0].length){var para=pm[0], o=pm.index, a,b;
+      if(/\b(patient|dob|d\.o\.b|date of birth|mrn|urn|medicare)\b\s*[:#]/i.test(para)&&(b=para.match(/\b(diagnos\w*|dx\b|prescri\w*|\d+\s?mg\b|[A-TV-Z]\d{2}\.\d{1,2}\b|discharge|patholog\w*)/i)))
+        F.push(f('block',o+b.index,o+b.index+b[0].length,'Medical record','Medical details in the same record as a patient identifier','',19));
+      var hdr=para.split('\n')[0];
+      if(((a=para.match(/\b(customer|client|account holder)\b\s*[:]/i))&&(b=para.match(/\b(balance|credit limit|arrears|overdue|loan amount|outstanding)\b/i)))||(/(name|email)/i.test(hdr)&&/,/.test(hdr)&&(b=hdr.match(/(balance|amount|limit|arrears)/i))))
+        F.push(f('block',o+b.index,o+b.index+b[0].length,'Customer financial record','Financial fields in the same record as a named customer','',20));
+      if((b=para.match(/\b(CONFIDENTIAL|INTERNAL USE ONLY|PROPRIETARY|DO NOT DISTRIBUTE)\b/)))
+        F.push(f('block',o+b.index,o+b.index+b[0].length,'Confidential material','Marked "'+b[0]+'"','',21));
+    }
+    F.sort(function(x,y){return x.prio-y.prio||(y.end-y.start)-(x.end-x.start);});
+    var kept=[]; F.forEach(function(x){ if(!kept.some(function(k){return x.start<k.end&&k.start<x.end;})) kept.push(x); });
+    return kept.sort(function(x,y){return x.start-y.start;});
+  }
+  function mask(s){var d=s.replace(/\s/g,''); if(/^[\p{Nd} -]+$/u.test(s)){var c=0,tot=(s.match(/\p{Nd}/gu)||[]).length;return s.replace(/\p{Nd}/gu,function(x){c++;return c>tot-2?x:'•';});}
+    return d.length<=8? d.slice(0,1)+'•••' : d.slice(0,4)+'••••'+d.slice(-2);}
+  function esc(s){return s.replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+
+  /* ---------------- UI ---------------- */
+  var HINDI='टैक्स फ़ाइल नंबर';
+  var PRESETS={
+    mixed:"Hi! Can you tidy up this onboarding note for our new contractor?\n\nContractor: Priya Shah, ABN 51 824 753 556\nHer TFN is 123 456 782 and her expenses card is 4539 1488 0343 6467.\n\nFor the checkout demo use 4242 4242 4242 4242. Order #123456782 has shipped.\n\nconfig.py\nDATABASE_URL = \"postgres://app:S3cr3t!pw@db.internal:5432/prod\"\npassword: string  # field type only\nAWS_KEY = \"AKIAIOSFODNN7EXAMPLE\"\n\nAlso, what are the common symptoms of type 2 diabetes?",
+    hindi:"मेरा "+HINDI+" १२३ ४५६ ७८२ है। कृपया यह फ़ॉर्म भर दें।\n\nCard with zero-width spaces between the groups: 4539​1488​0343​6467\n\nMi contraseña es: Wq8#zL2!vR",
+    csv:"Please dedupe this list before the import:\n\nname,aadhaar,pan\nRavi Kumar,3674 1950 2866,ABCPK1234D\nPriya Shah,,ABCPS1234K\n\n{\"user\": \"jo\", \"password\": \"Wq8#zL2!vR\"}\nlogin is jo@acme.io / Tr0ub4dor&3x",
+    patient:"Patient: Jane Citizen\nDOB: 03/04/1970\nMedicare: 2123 45670 1\nDx: E11.9 type 2 diabetes. Prescribed metformin 500 mg twice daily.\n\nCan you rewrite this as a referral letter to an endocrinologist?",
+    benign:"What are the common symptoms of type 2 diabetes, and how is a credit score calculated in Australia?\n\nconst password = req.body.password;\nif (!password) throw new Error('password required');\n\nStripe test card: 4242 4242 4242 4242\nAWS docs example: AKIAIOSFODNN7EXAMPLE\nAionix Pty Ltd, ABN 51 824 753 556\nMy order #123456782 hasn't arrived."
+  };
+  var inp=document.getElementById('pg-in'), ver=document.getElementById('pg-verdict'), view=document.getElementById('pg-view'), list=document.getElementById('pg-list'), red=document.getElementById('pg-redact'), note=document.getElementById('pg-redact-note');
+  if(!inp) return;
+  var last=[];
+  function render(){
+    var t0=performance.now(), src=inp.value, F=scan(src), ms=performance.now()-t0; last=F;
+    var nb=F.filter(function(x){return x.tier==='block';}).length, nw=F.filter(function(x){return x.tier==='warn';}).length;
+    var v=nb?['v-block','Blocked: '+nb+' high-risk item'+(nb>1?'s':'')+' found']:nw?['v-warn','Sends after a confirmation: '+nw+' item'+(nw>1?'s':'')+' to check']:['v-allow','Sends normally: nothing high-risk found'];
+    ver.className='verdict '+v[0];
+    ver.innerHTML='<b>'+v[1]+'</b><small>Checked '+src.length.toLocaleString()+' characters in '+ms.toFixed(2)+' ms</small>';
+    var h='',p=0; F.forEach(function(x){h+=esc(src.slice(p,x.start))+'<mark class="m-'+x.tier+'" title="'+esc(x.what+': '+x.why)+'">'+esc(src.slice(x.start,x.end))+'</mark>';p=x.end;}); view.innerHTML=h+esc(src.slice(p));
+    var groups=[['block','Blocks the send'],['warn','Needs a confirmation'],['allow','Recognised as safe']], L='';
+    groups.forEach(function(g){var xs=F.filter(function(x){return x.tier===g[0];}); if(!xs.length) return; L+='<li style="display:block;border:none;padding:0"><h3>'+g[1]+'</h3></li>';
+      xs.forEach(function(x){L+='<li><span class="pill p-'+x.tier+'">'+(x.tier==='block'?'Block':x.tier==='warn'?'Warn':'Allow')+'</span><span class="what">'+esc(x.what)+' <code>'+esc(x.tier==='allow'||!x.label?src.slice(x.start,x.end).slice(0,40):mask(src.slice(x.start,x.end)))+'</code></span><span class="why">'+esc(x.why)+'</span></li>';});});
+    list.innerHTML=L;
+    var redactable=F.filter(function(x){return x.tier==='block'&&x.label;}).length; red.disabled=!redactable; note.textContent='';
+  }
+  red.addEventListener('click',function(){var src=inp.value, k=0;
+    last.filter(function(x){return x.tier==='block'&&x.label;}).sort(function(a,b){return b.start-a.start;}).forEach(function(x){src=src.slice(0,x.start)+'['+x.label+']'+src.slice(x.end);k++;});
+    inp.value=src; render(); note.textContent='Replaced '+k+' item'+(k>1?'s':'')+'. Record-level items need the identifying details removed by hand.';});
+  var timer; inp.addEventListener('input',function(){clearTimeout(timer);timer=setTimeout(render,120);});
+  document.querySelectorAll('[data-preset]').forEach(function(b){b.addEventListener('click',function(){
+    document.querySelectorAll('[data-preset]').forEach(function(o){o.setAttribute('aria-pressed',o===b?'true':'false');});
+    inp.value=PRESETS[b.getAttribute('data-preset')]; render();});});
+  inp.value=PRESETS.mixed; render();
+  window.__pgScan=scan;
+})();
+</script>
+</body>
+</html>
