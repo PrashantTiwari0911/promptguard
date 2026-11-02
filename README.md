@@ -20,7 +20,7 @@ npm run build          # outputs dist/
 Tests:
 
 ```bash
-npm test               # unit tests + 83-case labelled corpus (Vitest)
+npm test               # unit tests + 87-case labelled corpus (Vitest)
 npx playwright install chromium
 npm run e2e            # 14 end-to-end tests with the extension loaded in Chromium
 npm run bench          # latency per input size, adversarial-regex check, false-positive sweep over node_modules
@@ -101,7 +101,7 @@ package prefixes in `Policy`), and only warns on very large unmarked code pastes
 
 | Check | Result |
 |---|---|
-| Unit + labelled corpus (83 cases incl. every edge case in the brief) | 96 / 96 pass |
+| Unit + labelled corpus (87 cases incl. every edge case in the brief) | 100 / 100 pass |
 | End-to-end, extension in Chromium, fixture pages copying each site's structure | 14 / 14 pass |
 | Latency, typical prompt (1 KB / 10 KB) | p95 0.5 ms / 1.1 ms |
 | Latency, 100 KB / 1 MB | p95 12 ms / 112 ms |

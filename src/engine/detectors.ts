@@ -34,30 +34,34 @@ function f(
 const PLACEHOLDER = /^(?:\*+|x{3,}|X{3,}|•+|\.{3}|<[^>]*>|\{\{?[^}]*\}?\}|\$\{?[\w.]+\}?|%[\w]+%|your[_-]?\w*|example\w*|changeme|redacted|null|none|undefined|todo|tbd|placeholder|secret|password|pass|test|dummy|sample|my[_-]?\w+)$/i;
 
 // ---------------------------------------------------------------- 1. API keys and access tokens
-const PROVIDER_KEYS: Array<[RegExp, string]> = [
-  [/\bsk-ant-[A-Za-z0-9]{3,10}-[A-Za-z0-9_-]{20,}/g, "Anthropic API key"],
-  [/\bsk-(?:proj-|svcacct-|admin-)?[A-Za-z0-9_-]{32,}/g, "OpenAI API key"],
-  [/\b(?:AKIA|ASIA|ABIA|ACCA)[0-9A-Z]{16}\b/g, "AWS access key"],
-  [/\b(?:gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{22,})/g, "GitHub token"],
-  [/\bglpat-[A-Za-z0-9_-]{20,}/g, "GitLab token"],
-  [/\bxox[abposr]-[A-Za-z0-9-]{10,}/g, "Slack token"],
+// Distinctive prefixes have no leading \b, so a key glued to a word ("hellosk-ant-…") is still found.
+// The OpenAI "sk-" prefix also occurs inside words ("risk-assessment-…"), so it needs a key-like body.
+const keyLike = (s: string) => /\d/.test(s) && /[A-Z]/.test(s) && /[a-z]/.test(s);
+const PROVIDER_KEYS: Array<[RegExp, string, ((s: string) => boolean)?]> = [
+  [/sk-ant-[A-Za-z0-9]{3,10}-[A-Za-z0-9_-]{20,}/g, "Anthropic API key"],
+  [/sk-(?:proj-|svcacct-|admin-)?[A-Za-z0-9_-]{32,}/g, "OpenAI API key", keyLike],
+  [/(?:AKIA|ASIA|ABIA|ACCA)[0-9A-Z]{16}(?![0-9A-Z])/g, "AWS access key"],
+  [/(?:gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{22,})/g, "GitHub token"],
+  [/glpat-[A-Za-z0-9_-]{20,}/g, "GitLab token"],
+  [/xox[abposr]-[A-Za-z0-9-]{10,}/g, "Slack token"],
   [/https:\/\/hooks\.slack\.com\/services\/T[A-Z0-9]+\/B[A-Z0-9]+\/[A-Za-z0-9]{20,}/g, "Slack webhook URL"],
-  [/\bAIza[0-9A-Za-z_-]{35}\b/g, "Google API key"],
-  [/\bGOCSPX-[A-Za-z0-9_-]{24,}/g, "Google OAuth client secret"],
-  [/\b(?:sk|rk)_live_[A-Za-z0-9]{20,}/g, "Stripe live key"],
-  [/\bSG\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}\b/g, "SendGrid API key"],
-  [/\bhf_[A-Za-z0-9]{30,}/g, "Hugging Face token"],
-  [/\bnpm_[A-Za-z0-9]{36}\b/g, "npm token"],
-  [/\bshp(?:at|ca|pa|ss)_[a-fA-F0-9]{32}\b/g, "Shopify token"],
-  [/\bATATT3[A-Za-z0-9_=-]{50,}/g, "Atlassian API token"],
+  [/AIza[0-9A-Za-z_-]{35}(?![0-9A-Za-z_-])/g, "Google API key"],
+  [/GOCSPX-[A-Za-z0-9_-]{24,}/g, "Google OAuth client secret"],
+  [/(?:sk|rk)_live_[A-Za-z0-9]{20,}/g, "Stripe live key"],
+  [/SG\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}(?![A-Za-z0-9_-])/g, "SendGrid API key"],
+  [/hf_[A-Za-z0-9]{30,}/g, "Hugging Face token", keyLike],
+  [/npm_[A-Za-z0-9]{36}(?![A-Za-z0-9])/g, "npm token"],
+  [/shp(?:at|ca|pa|ss)_[a-fA-F0-9]{32}(?![a-fA-F0-9])/g, "Shopify token"],
+  [/ATATT3[A-Za-z0-9_=-]{50,}/g, "Atlassian API token"],
   [/\bAC[0-9a-f]{32}\b|\bSK[0-9a-f]{32}\b/g, "Twilio key"],
 ];
 const DOC_EXAMPLE_KEYS = new Set(["AKIAIOSFODNN7EXAMPLE", "AKIAI44QH8DHBEXAMPLE"]);
 
 const apiKeys: Detector = ({ n }) => {
   const out: Finding[] = [];
-  for (const [re, name] of PROVIDER_KEYS) {
+  for (const [re, name, check] of PROVIDER_KEYS) {
     out.push(...each(re, n, (m) => {
+      if (check && !check(m[0])) return null;
       if (DOC_EXAMPLE_KEYS.has(m[0]) || /EXAMPLE|XXXXXXXX|0000000000/.test(m[0]))
         return f(1, "api_key", "allow", m.index, m.index + m[0].length, "Example key", "A documentation example, not a real key", "", 10);
       return f(1, "api_key", "block", m.index, m.index + m[0].length, name, `Matches the ${name} format`, "API_KEY", 10);
